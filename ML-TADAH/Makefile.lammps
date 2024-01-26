@@ -1,0 +1,21 @@
+# CONFIG
+#
+# Config values are semi-automatically guessed
+# when cmake is used to configure ta-dah
+# However, it's not bomb proof so manual
+# adjustnments might be necessary
+
+tadah_inc=-I@CMAKE_INSTALL_PREFIX@/include
+tadah_lnk=-L@CMAKE_INSTALL_PREFIX@/lib
+tadah_lib=-ltadah
+
+# END OF CONFIG
+
+tadah_lnk+=$(tadah_lib)
+#tadah_lnk+=-fopenmp
+
+export tadah_inc
+export tadah_lnk
+
+$(info   <TA-DAH!>  tadah_inc is $(tadah_inc))
+$(info   <TA-DAH!>  tadah_lnk is $(tadah_lnk))
