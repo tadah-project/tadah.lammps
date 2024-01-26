@@ -1,6 +1,3 @@
 [submodule "TADAH.MD"]
 	path = ML-TADAH/TADAH.MD
 	url = https://git.ecdf.ed.ac.uk/tadah/tadah.md.git
-[submodule "ML-TADAH/LIBS"]
-	path = ML-TADAH/LIBS
-	url = https://git.ecdf.ed.ac.uk/tadah/libs.git
