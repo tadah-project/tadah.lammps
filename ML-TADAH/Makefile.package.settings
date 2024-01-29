@@ -7,5 +7,5 @@ dynamic=-L$(dir) -l$(lib) -Wl,-rpath=$(absdir)
 tadah_obj=$(dir)/*.o
 
 #tadah_lnk=$(static)
-tadah_lnk=$(dynamic)
-#tadah_lnk=$(tadah_obj)
+#tadah_lnk=$(dynamic)
+tadah_lnk=$(tadah_obj)
