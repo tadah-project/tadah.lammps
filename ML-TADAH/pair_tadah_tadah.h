@@ -22,7 +22,7 @@ PairStyle(tadah/tadah,PairTadah)
 #define LMP_PAIR_TADAH_TADAH_H
 
 #include "pair.h"
-#include "tadah/lammps/lammps_tadah.h"
+#include "../../lib/tadah.md/lammps_tadah.h"
 
 namespace LAMMPS_NS {
 

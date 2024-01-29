@@ -38,26 +38,21 @@ done
 if (test $1 = 1) then
 
   if (test -e ../Makefile.package) then
-      sed -i -e 's|^PKG_INC =[ \t]*|&$(tadah_inc) |' ../Makefile.package
-      #sed -i -e 's|^PKG_PATH =[ \t]*|&$(tadah_lib) |' ../Makefile.package
       sed -i -e 's|^PKG_LIB =[ \t]*|&$(tadah_lnk) |' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '/^include.*tadah.*$/d' ../Makefile.package.settings
-    sed -i -e '4 i \
-include ..\/USER-TADAH\/Makefile.lammps\
-' ../Makefile.package.settings
+    sed -i -e '4i\include ../ML-TADAH/Makefile.package.settings\' ../Makefile.package.settings
   fi
 
 elif (test $1 = 0) then
 
   if (test -e ../Makefile.package) then
-    sed -i -e 's/[^ \t]*tadah[^ \t]* //' ../Makefile.package
+    sed -i -e 's/[^ \t]*tadah[^ \t]* //g' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '/.*USER-TADAH.*/d' ../Makefile.package.settings
+    sed -i -e '/ML-TADAH/d' ../Makefile.package.settings
   fi
 
 fi
