@@ -75,7 +75,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
     //double delij[3];
 
     aed_type2 aed(lt.c.get<size_t>("DSIZE"));
-    fd_type fd(lt.c.get<size_t>("DSIZE"),3);
+    fd_type fd(lt.c.get<size_t>("DSIZE"));
 
     int inum = list->inum;
     ilist = list->ilist;
@@ -164,7 +164,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
     int newton_pair = force->newton_pair;
 
     // fpsize x 3-directions
-    fd_type fd(lt.c.get<size_t>("DSIZE"),3);
+    fd_type fd(lt.c.get<size_t>("DSIZE"));
 
     // grow arrays if necessary
     if (atom->nmax > nmax) {
@@ -393,7 +393,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     int newton_pair = force->newton_pair;
 
     // fpsize x 3-directions
-    fd_type fd(lt.c.get<size_t>("DSIZE"),3);
+    fd_type fd(lt.c.get<size_t>("DSIZE"));
 
     // grow arrays if necessary
     if (atom->nmax > nmax) {
@@ -589,8 +589,8 @@ void PairTadah::compute_dimers(int eflag, int vflag)
     tagint **special = atom->special;
     int **nspecial = atom->nspecial;
 
-    fd_type fdIJ(lt.c.get<size_t>("DSIZE"),3);
-    fd_type fdJI(lt.c.get<size_t>("DSIZE"),3);
+    fd_type fdIJ(lt.c.get<size_t>("DSIZE"));
+    fd_type fdJI(lt.c.get<size_t>("DSIZE"));
 
     //n= 0, 1, 2, 3
     int i1,i2,j1,j2;
