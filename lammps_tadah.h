@@ -3,9 +3,8 @@
 
 #include <iostream>
 #include <string>
-#include "TADAH.MD/LIBS/Eigen/Dense"
 #include "TADAH.MD/CORE/config/config.h"
-#include "TADAH.MD/CORE/typedefs.h"
+#include "TADAH.MD/CORE/coretypes.h"
 #include "TADAH.MD/CORE/registry.h"
 #include "TADAH.MD/CORE/periodic_table.h"
 #include "TADAH.MD/MODELS/descriptors/d_all.h"
@@ -13,6 +12,7 @@
 #include "TADAH.MD/m_md_base.h"
 #include "TADAH.MD/MODELS/functions/function_base.h"
 #include "TADAH.MD/MODELS/dc_selector.h"
+
 
 /**
  * LAMMPS INTERFACE
@@ -27,7 +27,7 @@ class LammpsTadah {
         double cutoff_max_sq;
         double cutoff_max;
         rhos_type rhos;
-        aeds_type aeds;
+        aeds_type2 aeds;
         bool linear;
         bool dimer;
         bool dimer_bond_bool;
