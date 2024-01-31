@@ -74,7 +74,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
     Vec3d delij;
     //double delij[3];
 
-    aed_type aed(lt.c.get<size_t>("DSIZE"));
+    aed_type2 aed(lt.c.get<size_t>("DSIZE"));
     fd_type fd(lt.c.get<size_t>("DSIZE"),3);
 
     int inum = list->inum;
@@ -177,7 +177,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
     lt.aeds.setZero();
     if (lt.bias)
-        for (long int n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
+        for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
     //if (newton_pair || lt.initmb) {
     //    for (i = 0; i < nall; i++) {
@@ -411,7 +411,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     lt.rhos.setZero();
     lt.aeds.setZero();
     if (lt.bias)
-        for (long int n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
+        for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
     for (ii = 0; ii < inum; ii++) {
         i = ilist[ii];
@@ -758,7 +758,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             }
             lt.aeds.setZero();
             if (lt.bias)
-                for (long int n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
+                for (size_t  n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
             // Compute remaining 3 distances
             for (int n=3; n<6; ++n) {
