@@ -71,7 +71,8 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
     int *type = atom->type;
     int nlocal = atom->nlocal;
-    Eigen::Vector3d delij(3);
+    Vec3d delij;
+    //double delij[3];
 
     aed_type aed(lt.c.get<size_t>("DSIZE"));
     fd_type fd(lt.c.get<size_t>("DSIZE"),3);
@@ -153,7 +154,8 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
     int *type = atom->type;
     int nlocal = atom->nlocal;
     //int nall = nlocal + atom->nghost;
-    Eigen::Vector3d delij(3);
+    Vec3d delij;
+    //double delij[3];
 
     int inum = list->inum;
     ilist = list->ilist;
@@ -347,7 +349,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
                 // for mode!=0 we don't need to scale mb part by delij/rij
                 // as S.dmb calculator does it.
-                Eigen::Vector3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
+                Vec3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
 
                 f[i][0] += f_eam(0);
                 f[i][1] += f_eam(1);
@@ -382,7 +384,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     int *type = atom->type;
     int nlocal = atom->nlocal;
     //int nall = nlocal + atom->nghost;
-    Eigen::Vector3d delij(3);
+    Vec3d delij;
 
     int inum = list->inum;
     ilist = list->ilist;
@@ -546,7 +548,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
                 // for mode!=0 we don't need to scale mb part by delij/rij
                 // as S.dmb calculator does it.
-                Eigen::Vector3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
+                Vec3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
 
                 f[i][0] += f_eam(0);
                 f[i][1] += f_eam(1);
@@ -592,13 +594,13 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
     //n= 0, 1, 2, 3
     int i1,i2,j1,j2;
-    Eigen::MatrixXd delM(6,3);
+    Mat6R3C delM;
     double r_sq[6];
     double r[6];
 
-    Eigen::Vector3d delij_com(3);   // i-j CoM
-    Eigen::Vector3d i_com(3);   // i CoM
-    Eigen::Vector3d j_com(3);   // j CoM
+    Vec3d delij_com;   // i-j CoM
+    Vec3d i_com;   // i CoM
+    Vec3d j_com;   // j CoM
 
     // if bond is not included begin summation from the third distance
     int Nstart= lt.dimer_bond_bool ? 0:2;
@@ -647,7 +649,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         delM(0,0) = x[i1][0] - x[i2][0];
         delM(0,1) = x[i1][1] - x[i2][1];
         delM(0,2) = x[i1][2] - x[i2][2];
-        r_sq[0] = delM.row(0)*delM.row(0).transpose();
+        r_sq[0] = delM.row(0)*delM.row(0);
         r[0] = sqrt(r_sq[0]);
 
         if (abs(r[0]-r_b)>eps) {
@@ -656,9 +658,9 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
         jlist = firstneigh[i1];
         jnum = numneigh[i1];
-        i_com(0) = 0.5*(x[i1][0]+x[i2][0]);
-        i_com(1) = 0.5*(x[i1][1]+x[i2][1]);
-        i_com(2) = 0.5*(x[i1][2]+x[i2][2]);
+        i_com[0] = 0.5*(x[i1][0]+x[i2][0]);
+        i_com[1] = 0.5*(x[i1][1]+x[i2][1]);
+        i_com[2] = 0.5*(x[i1][2]+x[i2][2]);
 
         jmarkflag = markflag;   // TODO just search markflag with j1 and j2
         for (jj = 0; jj < jnum; jj++) {
@@ -669,7 +671,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             delM(2,0) = x[i1][0] - x[j1][0];
             delM(2,1) = x[i1][1] - x[j1][1];
             delM(2,2) = x[i1][2] - x[j1][2];
-            r_sq[2] = delM.row(2)*delM.row(2).transpose();
+            r_sq[2] = delM.row(2)*delM.row(2);
 
             if (r_sq[2] > lt.cutoff_max_sq) continue;
             r[2] = sqrt(r_sq[2]);
@@ -688,7 +690,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                     delM(1,0) = x[j1][0] - x[j2][0];
                     delM(1,1) = x[j1][1] - x[j2][1];
                     delM(1,2) = x[j1][2] - x[j2][2];
-                    r_sq[1] = delM.row(1)*delM.row(1).transpose();
+                    r_sq[1] = delM.row(1)*delM.row(1);
                     // the correct atom j2 is identified  when the distance
                     // between j1-j2 is approx equal to the bond length
                     if (abs(r_sq[1]-r_b_sq)<eps) {
@@ -711,7 +713,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                 delM(1,0) = x[j1][0] - x[j2][0];
                 delM(1,1) = x[j1][1] - x[j2][1];
                 delM(1,2) = x[j1][2] - x[j2][2];
-                r_sq[1] = delM.row(1)*delM.row(1).transpose();
+                r_sq[1] = delM.row(1)*delM.row(1);
                 r[1] = sqrt(r_sq[1]);
 
             }
@@ -740,11 +742,11 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             // for the full NN list.
 
             // Check are ij CoM distance within the max CoM cutoff distance
-            j_com(0) = 0.5*(x[j1][0]+x[j2][0]);
-            j_com(1) = 0.5*(x[j1][1]+x[j2][1]);
-            j_com(2) = 0.5*(x[j1][2]+x[j2][2]);
+            j_com[0] = 0.5*(x[j1][0]+x[j2][0]);
+            j_com[1] = 0.5*(x[j1][1]+x[j2][1]);
+            j_com[2] = 0.5*(x[j1][2]+x[j2][2]);
             delij_com = i_com - j_com;
-            double r_com_sq = delij_com.transpose() * delij_com;
+            double r_com_sq = delij_com * delij_com;
             if (r_com_sq > r_cut_com_sq) {
                 continue;
             }
@@ -765,7 +767,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                 delM(n,0) = x[I][0] - x[J][0];
                 delM(n,1) = x[I][1] - x[J][1];
                 delM(n,2) = x[I][2] - x[J][2];
-                r_sq[n] = delM.row(n)*delM.row(n).transpose();
+                r_sq[n] = delM.row(n)*delM.row(n);
                 r[n] = sqrt(r_sq[n]);
             }
 
@@ -868,7 +870,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                         lt.model->norm.normalise(fdJI);
                     }
 
-                    Eigen::Vector3d f_eam = scale[type[I]][type[J]] *lt.model->fpredict(fdIJ,lt.aeds.col(midx[n].first));
+                    Vec3d f_eam = scale[type[I]][type[J]] *lt.model->fpredict(fdIJ,lt.aeds.col(midx[n].first));
                     f_eam -= lt.model->fpredict(fdJI,lt.aeds.col(midx[n].second));
 
                     f[I][0] += f_eam(0);
