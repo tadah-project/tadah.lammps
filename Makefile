@@ -2,7 +2,7 @@
 # To compile Tadah.MD just type 'make' inside the lib root directory.
 ###############################################################################
 CC:= g++
-CXXFLAGS:= -std=c++17 -O3 -Wall -fPIC
+CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
 ###############################################################################
 
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
@@ -31,7 +31,7 @@ static: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) $(LIB.a) move remove_dirs
 
 obj: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) move remove_dirs
 
-.DEFAULT_GOAL := obj
+.DEFAULT_GOAL := static
 
 $(CORE_OBJ): $(BUILD_DIR)/%.o : %.cpp 
 	mkdir -p $(dir $@)
