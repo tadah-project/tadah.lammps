@@ -45,7 +45,7 @@ except subprocess.CalledProcessError as e:
   print("Make failed with:\n %s" % e.output.decode('UTF-8'))
   sys.exit(1)
 
-if os.path.exists("%s" % os.path.join(cwd,build_dir)):
+if os.path.exists("%s/lib%s.a" % (os.path.join(cwd,build_dir),lib)):
   print("Build was successful.")
 else:
   sys.exit("Build of lib/%s was NOT successful" % (lib, lib))
