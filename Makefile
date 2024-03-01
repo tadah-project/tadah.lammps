@@ -8,11 +8,14 @@ CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BUILD_DIR:=$(ROOT_DIR)/build
 
-CORE:=$(ROOT_DIR)/TADAH.MD/CORE
-MODELS:=$(ROOT_DIR)/TADAH.MD/MODELS
-TADAHMD:=$(ROOT_DIR)/TADAH.MD
+CORE:=$(ROOT_DIR)/CORE
+MODELS:=$(ROOT_DIR)/MODELS
+TADAHMD:=$(ROOT_DIR)
 
-CORE_SRC := $(shell find $(CORE) -name "*.cpp")
+CORE_SRC := $(wildcard $(CORE)/*.cpp)
+CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
+CORE_SRC += $(wildcard $(CORE)/utils/*.cpp)
+CORE_SRC := $(filter-out $(CORE)/lapack.cpp, $(CORE_SRC))
 MODELS_SRC := $(shell find $(MODELS) -name "*.cpp")
 TADAHMD_SRC := $(shell find $(TADAHMD) -maxdepth 1 -name "*.cpp")
 
@@ -20,7 +23,7 @@ CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
 TADAHMD_OBJ := $(TADAHMD_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
-TADAH_CONFIG_DIR:=$(ROOT_DIR)/TADAH.MD/CORE/config/
+TADAH_CONFIG_DIR:=$(ROOT_DIR)/CORE/config/
 tadah_lnk:=-DTADAH_CONFIG_DIR=\"${TADAH_CONFIG_DIR}\"
 
 LIB.so:=libtadah.md.so
