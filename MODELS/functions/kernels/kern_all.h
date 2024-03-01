@@ -1,7 +1,0 @@
-#include "kern_base.h"
-#include "kern_linear.h"
-#include "kern_rbf.h"
-#include "kern_lq.h"
-#include "kern_polynomial.h"
-#include "kern_sigmoid.h"
-#include "kern_quadratic.h"
