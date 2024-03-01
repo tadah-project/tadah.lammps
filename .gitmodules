@@ -1,3 +1,9 @@
 [submodule "MD"]
 	path = MD
 	url = https://git.ecdf.ed.ac.uk/tadah/md.git
+[submodule "CORE"]
+	path = CORE
+	url = https://git.ecdf.ed.ac.uk/tadah/core.git
+[submodule "MODELS"]
+	path = MODELS
+	url = https://git.ecdf.ed.ac.uk/tadah/models.git
