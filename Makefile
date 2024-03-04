@@ -10,18 +10,18 @@ BUILD_DIR:=$(ROOT_DIR)/build
 
 CORE:=$(ROOT_DIR)/CORE
 MODELS:=$(ROOT_DIR)/MODELS
-TADAHMD:=$(ROOT_DIR)
+MD:=$(ROOT_DIR)
 
 CORE_SRC := $(wildcard $(CORE)/*.cpp)
 CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
 CORE_SRC += $(wildcard $(CORE)/utils/*.cpp)
 CORE_SRC := $(filter-out $(CORE)/lapack.cpp, $(CORE_SRC))
 MODELS_SRC := $(shell find $(MODELS) -name "*.cpp")
-TADAHMD_SRC := $(shell find $(TADAHMD) -maxdepth 1 -name "*.cpp")
+MD_SRC := $(shell find $(MD) -maxdepth 1 -name "*.cpp")
 
 CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
-TADAHMD_OBJ := $(TADAHMD_SRC:%.cpp=$(BUILD_DIR)/%.o)
+MD_OBJ := $(MD_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
 TADAH_CONFIG_DIR:=$(ROOT_DIR)/CORE/config/
 tadah_lnk:=-DTADAH_CONFIG_DIR=\"${TADAH_CONFIG_DIR}\"
@@ -29,10 +29,10 @@ tadah_lnk:=-DTADAH_CONFIG_DIR=\"${TADAH_CONFIG_DIR}\"
 LIB.so:=libtadah.md.so
 LIB.a:=libtadah.md.a
 
-dynamic: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) $(LIB.so) move remove_dirs
-static: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) $(LIB.a) move remove_dirs
+dynamic: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) $(LIB.so) move remove_dirs
+static: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) $(LIB.a) move remove_dirs
 
-obj: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) move remove_dirs
+obj: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move remove_dirs
 
 .DEFAULT_GOAL := static
 
@@ -44,21 +44,21 @@ $(MODELS_OBJ): $(BUILD_DIR)/%.o : %.cpp
 	mkdir -p $(dir $@)
 	$(CC) $(CXXFLAGS) $(tadah_lnk) -c $< -o $@
 
-$(TADAHMD_OBJ): $(BUILD_DIR)/%.o : %.cpp
+$(MD_OBJ): $(BUILD_DIR)/%.o : %.cpp
 	mkdir -p $(dir $@)
 	$(CC) $(CXXFLAGS) $(tadah_lnk) -c $< -o $@
 
-move: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ)
+move: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ)
 	$(foreach f, $(shell find $(BUILD_DIR) -mindepth 2 -name "*.o"), $(shell mv $(f) $(BUILD_DIR)))
 
-remove_dirs: $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) move
+remove_dirs: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move
 	$(shell find $(BUILD_DIR) -type d -empty -delete)
 
-$(LIB.so): $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) move
+$(LIB.so): $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move
 	@echo Building $(LIB.so)...
 	$(CC) $(CXXFLAGS) -shared -o $(BUILD_DIR)/$@ $(BUILD_DIR)/*.o
 
-$(LIB.a): $(CORE_OBJ) $(MODELS_OBJ) $(TADAHMD_OBJ) move
+$(LIB.a): $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move
 	@echo Building $(LIB.a)...
 	ar rcs $(BUILD_DIR)/$@ $(BUILD_DIR)/*.o
 
