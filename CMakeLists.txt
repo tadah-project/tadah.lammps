@@ -16,7 +16,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt and CMakeFiles dir. ")
 endif()
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -100,20 +100,11 @@ add_subdirectory(CORE)
 add_subdirectory(MODELS)
 add_subdirectory(MD)
 
-if(BUILD_SHARED_LIBS) 
-    add_library(tadah_lammps SHARED
-        $<TARGET_OBJECTS:tadah.core.obj>
-        $<TARGET_OBJECTS:tadah.models.obj>
-        $<TARGET_OBJECTS:tadah.md.obj>
-        )
-else()
-    add_custom_target(libtadah_lammps ALL
-        COMMAND ${CMAKE_AR} rc libtadah_lammps.a
-        $<TARGET_FILE:tadah.core>
-        $<TARGET_FILE:tadah.models>
-        $<TARGET_FILE:tadah.md>
-        )
-endif()
+add_library(tadah.lammps
+    $<TARGET_OBJECTS:tadah.core.obj>
+    $<TARGET_OBJECTS:tadah.models.obj>
+    $<TARGET_OBJECTS:tadah.md.obj>
+    )
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)
@@ -142,9 +133,6 @@ else()
 endif()
 message(STATUS "${TADAH}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
 #########################################################################
-
-find_package(LAPACK)
-target_link_libraries (tadah_lammps PRIVATE ${LAPACK_LIBRARIES}) 
 
 #########################################################################
 
