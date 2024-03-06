@@ -51,13 +51,6 @@ run-tests-1:
   stage: run.tests
   needs: [build-tests]
   script:
-    - ta-dah --version
-    - ta-dah --help
-
-run-tests-2:
-  stage: run.tests
-  needs: [build-tests]
-  script:
     - cd ${DEBUG_DIR}
     - make test
     - gcovr --exclude='.*/Eigen/.*' --exclude='.*/catch2/.*' --exclude='.*/tests/.*' --exclude='.*/CLI11/.*' --exclude='.*/toml11/.*'  --exclude='.*/CMakeFiles/.*' -r ..
