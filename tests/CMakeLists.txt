@@ -12,7 +12,7 @@ file(GLOB tests_src "*.cpp")
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/tests_data DESTINATION .)
 
 add_executable(test_tadah.lammps ${tests_src})
-target_link_libraries(test_tadah.lammps PRIVATE Catch2::Catch2 tadah.lammps)
+target_link_libraries(test_tadah.lammps PRIVATE Catch2::Catch2 tadah.lammps tadah.core tadah.models)
     #if(BUILD_SHARED_LIBS)
     #    target_link_libraries(test_tadah.lammps PRIVATE Catch2::Catch2 tadah.lammps)
     #else()
