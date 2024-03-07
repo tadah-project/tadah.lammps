@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.12)
 project(tadah.LAMMPS)
 set(TADAH "Ta-dah!")
 
-
 # Here are the options... set them with -D,
 # for example:
 # cmake .. -DTADAH_BUILD_TESTS=ON
@@ -108,10 +107,6 @@ FetchContent_MakeAvailable(Tadah.MD)
 # Set CONFIG_FILE_DIR before adding CORE module
 # otherwise CORE module will set it itself to src dir
 # set(CONFIG_FILE_DIR "${CMAKE_INSTALL_PREFIX}/include/tadah/config/")
-
-#add_subdirectory(CORE)
-#add_subdirectory(MODELS)
-#add_subdirectory(MD)
 
 add_library(tadah.lammps
     $<TARGET_OBJECTS:tadah.core.obj>
