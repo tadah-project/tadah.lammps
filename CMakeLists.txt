@@ -3,17 +3,6 @@ cmake_minimum_required(VERSION 3.12)
 project(tadah.LAMMPS)
 set(TADAH "Ta-dah!")
 
-include(FetchContent)
-
-FetchContent_Declare(
-    Tadah.MD
-    GIT_REPOSITORY git@git.ecdf.ed.ac.uk:tadah/md.git
-    GIT_TAG origin/main
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
-    PATCH_COMMAND  mkdir -p build
-    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/build
-    )
-FetchContent_MakeAvailable(Tadah.MD)
 
 # Here are the options... set them with -D,
 # for example:
@@ -103,6 +92,18 @@ set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
     FORCE)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+include(FetchContent)
+
+FetchContent_Declare(
+    Tadah.MD
+    GIT_REPOSITORY git@git.ecdf.ed.ac.uk:tadah/md.git
+    GIT_TAG origin/main
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
+    PATCH_COMMAND  mkdir -p build
+    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/build
+    )
+FetchContent_MakeAvailable(Tadah.MD)
 
 # Set CONFIG_FILE_DIR before adding CORE module
 # otherwise CORE module will set it itself to src dir
