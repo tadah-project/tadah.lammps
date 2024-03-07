@@ -3,6 +3,18 @@ cmake_minimum_required(VERSION 3.12)
 project(tadah.LAMMPS)
 set(TADAH "Ta-dah!")
 
+include(FetchContent)
+
+FetchContent_Declare(
+    Tadah.MD
+    GIT_REPOSITORY git@git.ecdf.ed.ac.uk:tadah/md.git
+    GIT_TAG origin/main
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
+    PATCH_COMMAND  mkdir -p build
+    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/build
+    )
+FetchContent_MakeAvailable(Tadah.MD)
+
 # Here are the options... set them with -D,
 # for example:
 # cmake .. -DTADAH_BUILD_TESTS=ON
@@ -96,9 +108,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # otherwise CORE module will set it itself to src dir
 # set(CONFIG_FILE_DIR "${CMAKE_INSTALL_PREFIX}/include/tadah/config/")
 
-add_subdirectory(CORE)
-add_subdirectory(MODELS)
-add_subdirectory(MD)
+#add_subdirectory(CORE)
+#add_subdirectory(MODELS)
+#add_subdirectory(MD)
 
 add_library(tadah.lammps
     $<TARGET_OBJECTS:tadah.core.obj>
@@ -136,13 +148,10 @@ message(STATUS "${TADAH}: Build with fast math optimisation is ${TADAH_ENABLE_FA
 
 #########################################################################
 
-include(CTest) 
 if(TADAH_BUILD_TESTS)
+    include(CTest) 
     add_subdirectory(tests)
 endif()
-
-set(CATCH_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/catch2)
-
 
 message(STATUS "===================================================================")
 message(STATUS "                                                                   ")
