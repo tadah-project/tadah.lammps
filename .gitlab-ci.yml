@@ -42,7 +42,7 @@ run-tests-1:
   script:
     - cd ${DEBUG_DIR}
     - make test
-    - gcovr --exclude='.*/Eigen/.*' --exclude='.*/catch2/.*' --exclude='.*/tests/.*' --exclude='.*/CLI11/.*' --exclude='.*/toml11/.*'  --exclude='.*/CMakeFiles/.*' -r ..
+    - gcovr --exclude='.*CMakeCXXCompilerId.cpp.*' --exclude='.*/Eigen/.*' --exclude='.*/catch2/.*' --exclude='.*/tests/.*' --exclude='.*/CLI11/.*' --exclude='.*/toml11/.*'  --exclude='.*/CMakeFiles/.*' -r ..
   coverage: /^TOTAL.*\s+(\d+\%)$/
 
 build-release-shared:
