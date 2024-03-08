@@ -104,10 +104,6 @@ FetchContent_Declare(
     )
 FetchContent_MakeAvailable(Tadah.MD)
 
-# Set CONFIG_FILE_DIR before adding CORE module
-# otherwise CORE module will set it itself to src dir
-# set(CONFIG_FILE_DIR "${CMAKE_INSTALL_PREFIX}/include/tadah/config/")
-
 add_library(tadah.lammps
     $<TARGET_OBJECTS:tadah.core.obj>
     $<TARGET_OBJECTS:tadah.models.obj>
