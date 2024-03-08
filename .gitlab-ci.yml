@@ -24,7 +24,7 @@ build-debug-tests:
     - cmake .. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
     - make -j ${CPU_BUILD}
     - find ../ -name _deps -exec rm -rf {} +
-    - find ../ -name "*.a" -exec rm {} +
+    #- find ../ -name "*.a" -exec rm {} +
     - find ../ -name "*.o" -exec rm {} +
   artifacts:
     paths:
@@ -35,12 +35,18 @@ build-debug-tests:
 
 run-tests-1:
   variables: 
-    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR} CORE MODELS MD
+    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR} -e CORE -e MODELS -e MD
 
   stage: run.unit.tests
   needs: [build-debug-tests]
   script:
     - cd ${DEBUG_DIR}
+    - ls
+    - ls tests
+    - ls ..
+    - ls ../CORE
+    - ls ../MODELS
+    - ls ../MD
     - make test
     - gcovr --exclude='.*/Eigen/.*' --exclude='.*/catch2/.*' --exclude='.*/tests/.*' --exclude='.*/CLI11/.*' --exclude='.*/toml11/.*'  --exclude='.*/CMakeFiles/.*' -r ..
   coverage: /^TOTAL.*\s+(\d+\%)$/
