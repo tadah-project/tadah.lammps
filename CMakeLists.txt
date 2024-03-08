@@ -108,8 +108,12 @@ add_library(tadah.lammps
     $<TARGET_OBJECTS:tadah.core.obj>
     $<TARGET_OBJECTS:tadah.models.obj>
     $<TARGET_OBJECTS:tadah.md.obj>
+    $<TARGET_OBJECTS:config::rc>
     )
-target_link_libraries(tadah.lammps PRIVATE config::rc)
+
+
+find_package(LAPACK)
+target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)
