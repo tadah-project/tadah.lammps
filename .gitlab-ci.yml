@@ -31,6 +31,9 @@ build-debug-tests:
       - "${DEBUG_DIR}"
 
 run-tests-1:
+  variables: 
+    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR}
+
   stage: run.unit.tests
   needs: [build-debug-tests]
   script:
