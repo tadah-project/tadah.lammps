@@ -23,12 +23,15 @@ build-debug-tests:
     - cd ${DEBUG_DIR}
     - cmake .. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
     - make -j ${CPU_BUILD}
-    - rm -rf _deps
-    - find . -name "*.a" -exec rm {} +
-    - find . -name "*.o" -exec rm {} +
+    - find ../ -name _deps -exec rm -rf {} +
+    - find ../ -name "*.a" -exec rm {} +
+    - find ../ -name "*.o" -exec rm {} +
   artifacts:
     paths:
       - "${DEBUG_DIR}"
+      - "../CORE"
+      - "../MODELS"
+      - "../MD"
 
 run-tests-1:
   variables: 
