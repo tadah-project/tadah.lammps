@@ -35,7 +35,7 @@ build-debug-tests:
 
 run-tests-1:
   variables: 
-    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR}
+    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR} CORE MODELS MD
 
   stage: run.unit.tests
   needs: [build-debug-tests]
