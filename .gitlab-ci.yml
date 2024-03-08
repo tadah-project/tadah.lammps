@@ -29,9 +29,9 @@ build-debug-tests:
   artifacts:
     paths:
       - "${DEBUG_DIR}"
-      - "../CORE"
-      - "../MODELS"
-      - "../MD"
+      - "CORE"
+      - "MODELS"
+      - "MD"
 
 run-tests-1:
   variables: 
