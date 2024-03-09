@@ -113,7 +113,7 @@ add_library(tadah.lammps
 
 
 find_package(LAPACK)
-target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
+target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES} config::rc)
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)
