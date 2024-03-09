@@ -96,7 +96,7 @@ include(FetchContent)
 
 FetchContent_Declare(
     Tadah.MD
-    GIT_REPOSITORY git@git.ecdf.ed.ac.uk:tadah/md.git
+    GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
     GIT_TAG origin/main
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
     PATCH_COMMAND  mkdir -p build
