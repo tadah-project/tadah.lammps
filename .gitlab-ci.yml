@@ -4,7 +4,7 @@ variables:
 stages:
   - build.debug
   - run.unit.tests
-  - build_release
+  - build.release
   - run.functional.tests
   - trigger
 
@@ -23,15 +23,6 @@ build-debug-tests:
     - cd ${DEBUG_DIR}
     - cmake .. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
     - make -j ${CPU_BUILD}
-    #- find ../ -name _deps -exec rm -rf {} +
-    #- find ../ -name "*.a" -exec rm {} +
-#    - find ../ -name "*.o" -exec rm {} +
-#  artifacts:
-#    paths:
-#      - "${DEBUG_DIR}"
-#      - "CORE"
-#      - "MODELS"
-#      - "MD"
 
 run-tests-1:
   variables: 
@@ -46,7 +37,7 @@ run-tests-1:
   coverage: /^TOTAL.*\s+(\d+\%)$/
 
 build-release-shared:
-  stage: build_release
+  stage: build.release
   needs: [run-tests-1]
   script:
     - cd ${RELEASE_DIR}
@@ -54,9 +45,16 @@ build-release-shared:
     - make -j ${CPU_BUILD}
 
 build-release-static:
-  stage: build_release
+  stage: build.release
   needs: [build-release-shared]
   script:
     - cd ${RELEASE_DIR}
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
+    - make -j ${CPU_BUILD}
+
+build-ml-tadah:
+  #image: tadahmlip/alpine_lammps
+  stage: build.release
+  needs: [build-release-static]
+  script:
     - make -j ${CPU_BUILD}
