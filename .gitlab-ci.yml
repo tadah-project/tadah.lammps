@@ -8,15 +8,7 @@ stages:
   - run.functional.tests
   - trigger
 
-before_script:
-  - apk update
-  - apk add git  openssh
-  - apk add cmake
-  - apk add g++
-  - apk add gcovr
-  - apk add make
-  - apk add blas-dev
-  - apk add lapack-dev  
+before_script: 
   - mkdir -p ${DEBUG_DIR}
   - mkdir -p ${RELEASE_DIR}
   - export PATH=$PATH:${INSTALL_PATH}/bin
