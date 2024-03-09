@@ -8,6 +8,8 @@ CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BUILD_DIR:=$(ROOT_DIR)/build
 
+INC=-I$(ROOT_DIR)/CORE/lib/cmrc-master/
+
 CORE:=$(ROOT_DIR)/CORE
 MODELS:=$(ROOT_DIR)/MODELS
 MD:=$(ROOT_DIR)
@@ -23,9 +25,6 @@ CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MD_OBJ := $(MD_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
-TADAH_CONFIG_DIR:=$(ROOT_DIR)/CORE/config/
-tadah_lnk:=-DTADAH_CONFIG_DIR=\"${TADAH_CONFIG_DIR}\"
-
 LIB.so:=libtadah.md.so
 LIB.a:=libtadah.md.a
 
@@ -38,15 +37,15 @@ obj: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move remove_dirs
 
 $(CORE_OBJ): $(BUILD_DIR)/%.o : %.cpp 
 	mkdir -p $(dir $@)
-	$(CC) $(CXXFLAGS) $(tadah_lnk) -c $< -o $@
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(MODELS_OBJ): $(BUILD_DIR)/%.o : %.cpp
 	mkdir -p $(dir $@)
-	$(CC) $(CXXFLAGS) $(tadah_lnk) -c $< -o $@
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
 
 $(MD_OBJ): $(BUILD_DIR)/%.o : %.cpp
 	mkdir -p $(dir $@)
-	$(CC) $(CXXFLAGS) $(tadah_lnk) -c $< -o $@
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
 
 move: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ)
 	$(foreach f, $(shell find $(BUILD_DIR) -mindepth 2 -name "*.o"), $(shell mv $(f) $(BUILD_DIR)))
