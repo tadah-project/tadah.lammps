@@ -94,13 +94,15 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
+get_filename_component(BUILD_DIR_NAME ${CMAKE_BINARY_DIR} NAME)
+
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
     GIT_TAG origin/main
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
-    PATCH_COMMAND  mkdir -p build
-    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/build
+    PATCH_COMMAND  mkdir -p ${BUILD_DIR_NAME}
+    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/${BUILD_DIR_NAME}
     )
 FetchContent_MakeAvailable(Tadah.MD)
 
