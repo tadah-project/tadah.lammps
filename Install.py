@@ -34,10 +34,17 @@ if not os.path.exists(makefile):
 # make the library with parallel make
 n_cpus = get_cpus()
 
-print("Building lib%s ..." % lib)
+print("Configuring lib%s..." % lib)
+cmd = "./configure"
+try:
+  txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  print(txt.decode('UTF-8'))
+except subprocess.CalledProcessError as e:
+  print("Configure failed with:\n %s" % e.output.decode('UTF-8'))
+  sys.exit(1)
 
+print("Building lib%s..." % lib)
 cmd = "make -f %s clean; make -f %s -j%d" % (makefile, makefile, n_cpus)
-
 try:
   txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
   print(txt.decode('UTF-8'))

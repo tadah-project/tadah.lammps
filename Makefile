@@ -1,1 +1,73 @@
+TADAH_MD_CONFIGURED=true
+###############################################################################
+# To compile Tadah.MD just type 'make' inside the lib root directory.
+###############################################################################
+CC:= g++
+CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
+###############################################################################
+
+
+ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
+BUILD_DIR:=$(ROOT_DIR)/build
+
+INC=-I$(ROOT_DIR)/CORE/lib/cmrc-master/
+
+CORE:=$(ROOT_DIR)/CORE
+MODELS:=$(ROOT_DIR)/MODELS
+MD:=$(ROOT_DIR)
+
+CORE_SRC := $(wildcard $(CORE)/*.cpp)
+CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
+CORE_SRC += $(wildcard $(CORE)/utils/*.cpp)
+CORE_SRC := $(filter-out $(CORE)/lapack.cpp, $(CORE_SRC))
+MODELS_SRC := $(shell find $(MODELS) -name "*.cpp")
+MD_SRC := $(shell find $(MD) -maxdepth 1 -name "*.cpp")
+
+CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
+MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
+MD_OBJ := $(MD_SRC:%.cpp=$(BUILD_DIR)/%.o)
+
+LIB.so:=libtadah.md.so
+LIB.a:=libtadah.md.a
+
+dynamic: $(LIB.so) move remove_dirs
+static: $(LIB.a) move remove_dirs
+
+obj: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ) move remove_dirs
+
+.DEFAULT_GOAL := static
+
+$(CORE_OBJ): $(BUILD_DIR)/%.o : %.cpp 
+	mkdir -p $(dir $@)
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
+
+$(MODELS_OBJ): $(BUILD_DIR)/%.o : %.cpp
+	mkdir -p $(dir $@)
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
+
+$(MD_OBJ): $(BUILD_DIR)/%.o : %.cpp
+	mkdir -p $(dir $@)
+	$(CC) $(CXXFLAGS) $(INC) -c $< -o $@
+
+move: $(CORE_OBJ) $(MODELS_OBJ) $(MD_OBJ)
+	$(foreach f, $(shell find $(BUILD_DIR) -mindepth 2 -name "*.o"), $(shell mv $(f) $(BUILD_DIR)))
+
+remove_dirs: move
+	$(shell find $(BUILD_DIR) -type d -empty -delete)
+
+$(LIB.so): move
+	@echo Building $(LIB.so)...
+	$(CC) $(CXXFLAGS) -shared -o $(BUILD_DIR)/$@ $(BUILD_DIR)/*.o
+
+$(LIB.a): move
+	@echo Building $(LIB.a)...
+	ar rcs $(BUILD_DIR)/$@ $(BUILD_DIR)/*.o
+
+clean:
+	rm -f $(BUILD_DIR)/*.o
+	rm -f $(BUILD_DIR)/$(LIB.so)
+	rm -f $(BUILD_DIR)/$(LIB.a)
+
+ifndef TADAH_MD_CONFIGURED
 $(error Run ./configure before invoking make)
+endif
