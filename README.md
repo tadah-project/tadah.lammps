@@ -1,15 +1,12 @@
 # Ta-dah.LAMMPS
 
-#Manual installation instructions:
+## Manual installation instructions:
 
-    1. Copy ML-TADAH directory to lammps/src
-    2. Copy below files/dirs to lammps/lib/tadah.md:
-        lammps_tadah.h
-        Makefile
-        Install.py
-        TADAH.MD
-    3. In lammps/src issue:
-        make lib-tadah.md
+    1.  Clone this repo to lammps/lib
+        The directory name must be the same as the repository name: tadah.lammps
+
+    2. In lammps/src issue:
+        make lib-tadah.lammps
         make yes-ml-tadah
         make serial
 
