@@ -1,18 +1,18 @@
 #ifndef LAMMPS_TADAH_H
 #define LAMMPS_TADAH_H
 
+#include "CORE/config/config.h"
+#include "CORE/core_types.h"
+#include "CORE/registry.h"
+#include "CORE/periodic_table.h"
+#include "MODELS/descriptors/d_all.h"
+#include "MODELS/cutoffs/cutoffs.h"
+#include "MD/m_md_base.h"
+#include "MODELS/functions/function_base.h"
+#include "MODELS/dc_selector.h"
+
 #include <iostream>
 #include <string>
-#include "TADAH.MD/CORE/config/config.h"
-#include "TADAH.MD/CORE/core_types.h"
-#include "TADAH.MD/CORE/registry.h"
-#include "TADAH.MD/CORE/periodic_table.h"
-#include "TADAH.MD/MODELS/descriptors/d_all.h"
-#include "TADAH.MD/MODELS/cutoffs/cutoffs.h"
-#include "TADAH.MD/m_md_base.h"
-#include "TADAH.MD/MODELS/functions/function_base.h"
-#include "TADAH.MD/MODELS/dc_selector.h"
-
 
 /**
  * LAMMPS INTERFACE
@@ -60,9 +60,9 @@ class LammpsTadah {
             // We need deep copy for fb and model.
             // For now we just init them the same way
             // as constructor does
-            fb = factory<Function_Base,Config&>(
+            fb = CONFIG::factory<Function_Base,Config&>(
                     c.get<std::string>("MODEL",1),c);
-            model = factory<M_MD_Base,Function_Base&,Config&>(
+            model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
                     c.get<std::string>("MODEL",0),*fb,c);
             aeds=lt.aeds;
             rhos=lt.rhos;
@@ -129,9 +129,9 @@ class LammpsTadah {
             throw std::runtime_error("MODEL keyword requires two values\n\
                     e.g. MODEL M_BLR BF_Linear\n");
 
-        fb = factory<Function_Base,Config&>(
+        fb = CONFIG::factory<Function_Base,Config&>(
                 c.get<std::string>("MODEL",1),c);
-        model = factory<M_MD_Base,Function_Base&,Config&>(
+        model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
                 c.get<std::string>("MODEL",0),*fb,c);
 
         // bias affects position of fidx for descriptors

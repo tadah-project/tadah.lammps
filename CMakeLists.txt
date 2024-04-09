@@ -16,13 +16,14 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt and CMakeFiles dir. ")
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(BUILD_SHARED_LIBS)
-    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
+#if(BUILD_SHARED_LIBS)
+# The static library might be linked againt dynamic so we need PIC
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+#endif()
 
 if (BUILD_SHARED_LIBS)
     # Always full RPATH

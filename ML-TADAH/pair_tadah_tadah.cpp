@@ -93,7 +93,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
         //double iweight = lt.weights[type[i]-1];
 
         for (jj = 0; jj < jnum; jj++) {
-            aed.setZero();
+            aed.set_zero();
             j = jlist[jj];
             j &= NEIGHMASK;
             delij[0] = xtmp - x[j][0];
@@ -128,7 +128,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
             if (evflag) ev_tally(i,j,nlocal,newton_pair,ei,0.0,fpair,delij[0],delij[1],delij[2]);
         }
 
-        aed.setZero();
+        aed.set_zero();
         if (lt.bias)
             aed(0) = 1.0;
         ei = lt.model->epredict(aed);   // This is to get constant shift in E
@@ -173,21 +173,21 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 		lt.rhos.resize(s,nmax);
 		lt.aeds.resize(lt.c.get<size_t>("DSIZE"),nmax);
     }
-    lt.rhos.setZero();
+    lt.rhos.set_zero();
 
-    lt.aeds.setZero();
+    lt.aeds.set_zero();
     if (lt.bias)
         for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
     //if (newton_pair || lt.initmb) {
     //    for (i = 0; i < nall; i++) {
-    //        lt.aeds[i].setZero();
+    //        lt.aeds[i].set_zero();
     //        if (lt.bias)
     //            lt.aeds[i](0) = 1.0;
     //    }
     //}
     //else for (i = 0; i < nlocal; i++) {
-    //    lt.aeds[i].setZero();
+    //    lt.aeds[i].set_zero();
     //    if (lt.bias)
     //        lt.aeds[i](0) = 1.0;
     //}
@@ -286,7 +286,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         jnum = numneigh[i];
         double iweight = lt.weights[type[i]-1];
         for (jj = 0; jj < jnum; jj++) {
-            fd.setZero();
+            fd.set_zero();
             j = jlist[jj];
             j &= NEIGHMASK;
             delij[0] = xtmp - x[j][0];
@@ -404,12 +404,12 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     }
 
     //for (i = 0; i < nlocal; i++) {
-    //    lt.aeds[i].setZero();
+    //    lt.aeds[i].set_zero();
     //    if (lt.bias)
     //        lt.aeds[i](0) = 1.0;
     //}
-    lt.rhos.setZero();
-    lt.aeds.setZero();
+    lt.rhos.set_zero();
+    lt.aeds.set_zero();
     if (lt.bias)
         for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
@@ -484,7 +484,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
         jnum = numneigh[i];
         // double iweight = lt.weights[type[i]-1];
         for (jj = 0; jj < jnum; jj++) {
-            fd.setZero();
+            fd.set_zero();
             j = jlist[jj];
             j &= NEIGHMASK;
             delij[0] = xtmp - x[j][0];
@@ -614,7 +614,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
     std::vector<int> markflag(atom->nlocal+atom->nghost,0);
     std::vector<int> jmarkflag(atom->nlocal+atom->nghost,0);
-    //markflag.setZero();
+    //markflag.set_zero();
 
     for (ii = 0; ii < inum; ii++) {
         i1 = ilist[ii];
@@ -754,9 +754,9 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             std::vector<int> IJ  = {i1,i2,j1,j2};
 
             if (lt.initmb) {
-                lt.rhos.setZero();
+                lt.rhos.set_zero();
             }
-            lt.aeds.setZero();
+            lt.aeds.set_zero();
             if (lt.bias)
                 for (size_t  n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
 
@@ -805,8 +805,8 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
             // Compute forces
             for (int n=Nstart; n<6; ++n) {
-                fdIJ.setZero();
-                fdJI.setZero();
+                fdIJ.set_zero();
+                fdJI.set_zero();
                 int I=IJ[midx[n].first];
                 int J=IJ[midx[n].second];
                 if (lt.init2b && lt.S.c2b->get_rcut() > r[n]) {
@@ -831,8 +831,11 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                         lt.model->norm.normalise(fdIJ,0);
                     double fpair = lt.model->fpredict(
                             fdIJ,lt.aeds.col(midx[n].first),0)/r[n];
-                    fpair -= scale[type[I]][type[J]] *lt.model->fpredict(
-                            -fdIJ,lt.aeds.col(midx[n].second),0)/r[n];
+                    //fpair -= scale[type[I]][type[J]] * lt.model->fpredict(
+                    //        -fdIJ,lt.aeds.col(midx[n].second),0)/r[n];
+                    // -fdIJ is removed from the math library
+                    fpair += scale[type[I]][type[J]] * lt.model->fpredict(
+                            fdIJ,lt.aeds.col(midx[n].second),0)/r[n];
 
                     f[I][0] += fpair*delM(n,0);
                     f[I][1] += fpair*delM(n,1);

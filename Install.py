@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 
 """
-Install.py tool to build the Tadah.MD library.
+Install.py tool to build the Tadah.LAMMPS library.
 The library is required by the ML-TADAH package.
+To library is built with CMake.
 
 Issue below command from the lammps/src directory:
 
-    make lib-tadah.md
+    make lib-tadah.lammps
 
 """
 
@@ -26,33 +27,62 @@ build_dir='build'
 cwd = fullpath('.')
 lib = os.path.basename(cwd)
 
-makefile=os.path.join(cwd,'Makefile')
-
-if not os.path.exists(makefile):
-  sys.exit("lib/%s/Makefile.%s does not exist" % (lib, machine))
-
 # make the library with parallel make
 n_cpus = get_cpus()
 
-print("Configuring lib%s..." % lib)
-cmd = "./configure"
+# Build with CMake
+cmd = "mkdir -p build && cd build && cmake .."
+cmd += " -DBUILD_SHARED_LIBS=OFF" 
+cmd += " && make -j %d" % n_cpus
+
 try:
   txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
   print(txt.decode('UTF-8'))
 except subprocess.CalledProcessError as e:
-  print("Configure failed with:\n %s" % e.output.decode('UTF-8'))
+  print("Build failed with:\n %s" % e.output.decode('UTF-8'))
   sys.exit(1)
 
-print("Building lib%s..." % lib)
-cmd = "make -f %s clean; make -f %s -j%d" % (makefile, makefile, n_cpus)
-try:
-  txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-  print(txt.decode('UTF-8'))
-except subprocess.CalledProcessError as e:
-  print("Make failed with:\n %s" % e.output.decode('UTF-8'))
-  sys.exit(1)
+# Install with make does not work because
+# compilation of cmrc resource library is not implemented
+# The possible workaround is to generate intermediate files
+# with cmake and then compile and link resource lib within the Makefile
+#makefile=os.path.join(cwd,'Makefile')
+#
+#if not os.path.exists(makefile):
+#  sys.exit("lib/%s/Makefile.%s does not exist" % (lib, machine))
+#
+#print("Configuring lib%s..." % lib)
+#cmd = "./configure"
+#try:
+#  txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+#  print(txt.decode('UTF-8'))
+#except subprocess.CalledProcessError as e:
+#  print("Configure failed with:\n %s" % e.output.decode('UTF-8'))
+#  sys.exit(1)
+#
+#print("Building lib%s..." % lib)
+#cmd = "make -f %s clean; make -f %s -j%d" % (makefile, makefile, n_cpus)
+#try:
+#  txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+#  print(txt.decode('UTF-8'))
+#except subprocess.CalledProcessError as e:
+#  print("Make failed with:\n %s" % e.output.decode('UTF-8'))
+#  sys.exit(1)
 
+
+# Verify compilation
 if os.path.exists("%s/lib%s.a" % (os.path.join(cwd,build_dir),lib)):
   print("Build was successful.")
 else:
   sys.exit("Build of lib/%s was NOT successful" % (lib, lib))
+
+# Copy ML-TADAH to lammps src
+try:
+    print("Coping ML-TADAH directory to LAMMPS src directory...")
+    cwd=os.getcwd()
+    from distutils.dir_util import copy_tree
+    copy_tree(os.path.join(cwd,"ML-TADAH"), os.path.join(cwd,"../../src/ML-TADAH"))
+    print("Done")
+except:
+    print("Could not copy ML-TADAH.")
+    sys.exit(1)

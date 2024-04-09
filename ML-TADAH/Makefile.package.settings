@@ -1,4 +1,4 @@
-lib=tadah.md
+lib=tadah.lammps
 dir=../../lib/$(lib)/build
 absdir=$(shell readlink -e $(dir))
 
@@ -6,6 +6,6 @@ static=-L$(dir) -l$(lib)
 dynamic=-L$(dir) -l$(lib) -Wl,-rpath=$(absdir)
 tadah_obj=$(dir)/*.o
 
-#tadah_lnk=$(static)
+tadah_lnk=$(static)
 #tadah_lnk=$(dynamic)
-tadah_lnk=$(tadah_obj)
+#tadah_lnk=$(tadah_obj)

@@ -1,4 +1,15 @@
 #!/bin/sh
+
+echo "************************************************************************"
+echo "                   WARNING"
+echo "                   WORK IN PROGRESS"
+echo Compilation with make does not fully work.
+echo Make will compile without error but won\'t compile and link
+echo libtadah.lammps to necessary cmrc library.
+echo Use CMake instead. This works fine.
+echo You might need to remove build directory before running cmake.
+echo "************************************************************************"
+
 CORE_URL=https://git.ecdf.ed.ac.uk/tadah/core.git
 MODELS_URL=https://git.ecdf.ed.ac.uk/tadah/models.git
 MD_URL=https://git.ecdf.ed.ac.uk/tadah/md.git

@@ -14,7 +14,7 @@ INC=-I$(ROOT_DIR)/CORE/lib/cmrc-master/
 
 CORE:=$(ROOT_DIR)/CORE
 MODELS:=$(ROOT_DIR)/MODELS
-MD:=$(ROOT_DIR)
+MD:=$(ROOT_DIR)/MD
 
 CORE_SRC := $(wildcard $(CORE)/*.cpp)
 CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
@@ -27,8 +27,8 @@ CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MD_OBJ := $(MD_SRC:%.cpp=$(BUILD_DIR)/%.o)
 
-LIB.so:=libtadah.md.so
-LIB.a:=libtadah.md.a
+LIB.so:=libtadah.lammps.so
+LIB.a:=libtadah.lammps.a
 
 dynamic: $(LIB.so) move remove_dirs
 static: $(LIB.a) move remove_dirs
