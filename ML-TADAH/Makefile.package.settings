@@ -1,11 +1,13 @@
 lib=tadah.lammps
 dir=../../lib/$(lib)/build
 absdir=$(shell readlink -e $(dir))
+cmrc=../../lib/$(lib)/CORE/lib/cmrc-master
 
-static=-L$(dir) -l$(lib)
-dynamic=-L$(dir) -l$(lib) -Wl,-rpath=$(absdir)
-tadah_obj=$(dir)/*.o
+static_lnk=-L$(dir) -l$(lib)
+dynamic_lnk=-L$(dir) -l$(lib) -Wl,-rpath=$(absdir)
+tadah_obj_lnk=$(dir)/*.o
 
-tadah_lnk=$(static)
+tadah_inc=-I$(cmrc)
+tadah_lnk=$(static_lnk)
 #tadah_lnk=$(dynamic)
 #tadah_lnk=$(tadah_obj)
