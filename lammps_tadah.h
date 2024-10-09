@@ -23,7 +23,7 @@ class LammpsTadah {
     public:
         Config c;
         bool norm;
-        bool bias;
+        size_t bias=0;
         double cutoff_max_sq;
         double cutoff_max;
         rhos_type rhos;
@@ -98,7 +98,7 @@ class LammpsTadah {
         LammpsTadah(int narg, char **arg):
             c(arg[2]),
             norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
-            bias(c.get<bool>("BIAS")),
+            //bias(c.get<bool>("BIAS")),
             cutoff_max_sq(pow(c.get<double>("RCUTMAX"),2)),
             cutoff_max(c.get<double>("RCUTMAX")),
             linear(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear"),
@@ -135,10 +135,9 @@ class LammpsTadah {
                 c.get<std::string>("MODEL",0),*fb,c);
 
         // bias affects position of fidx for descriptors
-        size_t bias=0;
         if (c.get<bool>("BIAS"))
             bias++;
-
+        
         // add INTERNAL_KEYS
         size_t dsize=0;
         if (S.d2b->size()) {
@@ -181,11 +180,11 @@ int pack_reverse_linear(int n, int first, double *buf)
     int last = first + n;
     for (int i = first; i < last; i++) {
         for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-            buf[m++] = rhos(x,i);
+            buf[m++] = rhos(i,x);
         // pack two-body only, as many-body will be computed from rho
         // which is being packed hence we do now comm mb-aeds
         for (size_t x = bias; x < S.d2b->size()+bias; x++)
-            buf[m++] = aeds(x,i);
+            buf[m++] = aeds(i,x);
     }
     return m;
 }
@@ -195,9 +194,9 @@ void unpack_reverse_linear(int n, int *list, double *buf)
     for (int i = 0; i < n; i++) {
         int j = list[i];
         for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-            rhos(x,j) += buf[m++];
+            rhos(j,x) += buf[m++];
         for (size_t x = bias; x < S.d2b->size()+bias; x++)
-            aeds(x,j) += buf[m++];
+            aeds(j,x) += buf[m++];
     }
 }
 // Pack the derivative of the embedding func
@@ -207,7 +206,7 @@ int pack_forward_linear(int n, int *list, double *buf)
     for (int i = 0; i < n; i++) {
         int j = list[i];
         for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-            buf[m++] = rhos(x,j);
+            buf[m++] = rhos(j,x);
     }
     return m;
 }
@@ -217,7 +216,7 @@ void unpack_forward_linear(int n, int first, double *buf) {
     int last = first + n;
     for (int i = first; i < last; i++) {
         for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-            rhos(x,i) = buf[m++];
+            rhos(i,x) = buf[m++];
     }
 }
 // NONLINEAR
@@ -229,11 +228,11 @@ int pack_reverse_nonlinear(int n, int first, double *buf)
     last = first + n;
     for (i = first; i < last; i++) {
         for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-            buf[m++] = rhos(x,i);
+            buf[m++] = rhos(i,x);
         // pack two-body only, as many-body will be computed from rho
         // which is packed above hence we do now comm mb-aeds
         for (size_t x = bias; x < S.d2b->size()+bias; x++)
-            buf[m++] = aeds(x,i);
+            buf[m++] = aeds(i,x);
     }
     return m;
 }
@@ -245,9 +244,9 @@ void unpack_reverse_nonlinear(int n, int *list, double *buf)
     for (i = 0; i < n; i++) {
         j = list[i];
         for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-            rhos(x,j) += buf[m++];
+            rhos(j,x) += buf[m++];
         for (size_t x = bias; x < S.d2b->size()+bias; x++)
-            aeds(x,j) += buf[m++];
+            aeds(j,x) += buf[m++];
     }
 }
 int pack_forward_nonlinear(int n, int *list, double *buf)
@@ -258,9 +257,9 @@ int pack_forward_nonlinear(int n, int *list, double *buf)
     for (i = 0; i < n; i++) {
         j = list[i];
         for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-            buf[m++] = rhos(x,j);
+            buf[m++] = rhos(j,x);
         for (size_t x = bias; x < S.d2b->size()+S.dmb->size()+bias; x++)
-            buf[m++] = aeds(x,j);
+            buf[m++] = aeds(j,x);
     }
     return m;
 }
@@ -271,9 +270,9 @@ void unpack_forward_nonlinear(int n, int first, double *buf) {
     last = first + n;
     for (i = first; i < last; i++) {
         for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-            rhos(x,i) = buf[m++];
+            rhos(i,x) = buf[m++];
         for (size_t x = bias; x < S.d2b->size()+S.dmb->size()+bias; x++)
-            aeds(x,i) = buf[m++];
+            aeds(i,x) = buf[m++];
     }
 }
 

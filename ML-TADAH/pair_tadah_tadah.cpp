@@ -399,8 +399,8 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     if (atom->nmax > nmax) {
         nmax = atom->nmax;
         size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
-		lt.rhos.resize(s,nmax);
-		lt.aeds.resize(lt.c.get<size_t>("DSIZE"), nmax);
+        lt.rhos.resize(s,nmax);
+        lt.aeds.resize(lt.c.get<size_t>("DSIZE"), nmax);
     }
 
     //for (i = 0; i < nlocal; i++) {
@@ -410,8 +410,9 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     //}
     lt.rhos.set_zero();
     lt.aeds.set_zero();
-    if (lt.bias)
-        for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
+    if (lt.bias) {
+      for (size_t n=0; n<lt.aeds.cols(); ++n ) lt.aeds(n,0) = 1.0;
+    }
 
     for (ii = 0; ii < inum; ii++) {
         i = ilist[ii];
@@ -470,6 +471,8 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     }
 
     // communicate the derivative of the embedding function
+    // TODO removing this "fix" segmentation fault
+    // but why is this triggered in the first place
     if (comm_forward)
         comm->forward_comm(this);
 
@@ -897,7 +900,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 }
 void PairTadah::compute(int eflag, int vflag)
 {
-    if (lt.c.get<bool>("DIMER",0)) {
+    if (lt.dimer) {
         compute_dimers(eflag,vflag);
     }
     else {
@@ -967,7 +970,7 @@ void PairTadah::coeff(int narg, char **arg)
 
     if (lt.c.get<bool>("INITMB"))
         manybody_flag++;
-    if (lt.c.get<bool>("DIMER",0)) {
+    if (lt.dimer) {
         manybody_flag=0;
         /*  [0] i1-i2    (i1)-[2]-(j1)
          *  [1] j1-j2     | \    / |
@@ -1047,7 +1050,7 @@ void PairTadah::init_style()
 
     neighbor->request(this,instance_me);
 
-    if (lt.c.get<bool>("DIMER",0)) {
+    if (lt.dimer) {
         neighbor->add_request(this, NeighConst::REQ_FULL);
         if (force->newton_pair)
             error->all(FLERR,"Pair style tadah/tadah requires newton pair off for this potential.");
