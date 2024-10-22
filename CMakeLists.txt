@@ -95,28 +95,43 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include(FetchContent)
 
-get_filename_component(BUILD_DIR_NAME ${CMAKE_BINARY_DIR} NAME)
+if(DEFINED ENV{CI_COMMIT_REF_NAME})
+    set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
+else()
+    execute_process(
+    COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
+endif()
 
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
-    GIT_TAG origin/main
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD
-    PATCH_COMMAND  mkdir -p ${BUILD_DIR_NAME}
-    BINARY_DIR ${CMAKE_CURRENT_SOURCE_DIR}/MD/${BUILD_DIR_NAME}
+    GIT_TAG origin/${GIT_BRANCH}
     )
 FetchContent_MakeAvailable(Tadah.MD)
 
-add_library(tadah.lammps
-    $<TARGET_OBJECTS:tadah.core.obj>
-    $<TARGET_OBJECTS:tadah.models.obj>
-    $<TARGET_OBJECTS:tadah.md.obj>
-    $<TARGET_OBJECTS:config::rc>
-    )
+file(GLOB CORE_SRC CONFIGURE_DEPENDS ${Tadah.CORE_SOURCE_DIR}/src/*)
+file(GLOB MODELS_SRC CONFIGURE_DEPENDS ${Tadah.MODELS_SOURCE_DIR}/src/*)
+file(GLOB MD_SRC CONFIGURE_DEPENDS ${Tadah.MD_SOURCE_DIR}/src/*)
 
+add_library(tadah.lammps INTERFACE
+  #${CORE_SRC}
+  #${MODELS_SRC}
+  #${MD_SRC}
+  )
+target_link_libraries(tadah.lammps INTERFACE tadah.core)
+target_link_libraries(tadah.lammps INTERFACE tadah.models)
+target_link_libraries(tadah.lammps INTERFACE tadah.md)
 
+#target_include_directories(tadah.models PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 find_package(LAPACK)
-target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES} config::rc)
+target_link_libraries (tadah.lammps INTERFACE ${LAPACK_LIBRARIES})
+#target_include_directories(tadah.lammps PUBLIC ${Tadah.MD_SOURCE_DIR}/include)
+#target_include_directories(tadah.lammps PUBLIC ${Tadah.MODELS_SOURCE_DIR}/include)
+#target_include_directories(tadah.lammps PUBLIC ${Tadah.CORE_SOURCE_DIR}/include)
+#target_include_directories(tadah.lammps PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)

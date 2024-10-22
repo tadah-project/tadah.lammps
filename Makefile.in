@@ -11,16 +11,14 @@ BUILD_DIR:=$(ROOT_DIR)/build
 
 INC=-I$(ROOT_DIR)/CORE/lib/cmrc-master/
 
-CORE:=$(ROOT_DIR)/CORE
-MODELS:=$(ROOT_DIR)/MODELS
-MD:=$(ROOT_DIR)/MD
+CORE:=$(ROOT_DIR)/CORE/build
+MODELS:=$(ROOT_DIR)/MODELS/build
+MD:=$(ROOT_DIR)/MD/build
 
-CORE_SRC := $(wildcard $(CORE)/*.cpp)
-CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
-CORE_SRC += $(wildcard $(CORE)/utils/*.cpp)
-CORE_SRC := $(filter-out $(CORE)/lapack.cpp, $(CORE_SRC))
-MODELS_SRC := $(shell find $(MODELS) -name "*.cpp")
-MD_SRC := $(shell find $(MD) -maxdepth 1 -name "*.cpp")
+CORE_SRC := $(wildcard $(CORE)/src/*.cpp)
+CORE_SRC := $(filter-out $(CORE)/src/lapack.cpp, $(CORE_SRC))
+MODELS_SRC := $(wildcard $(MODELS)/src/*.cpp)
+MD_SRC := $(wildcard $(MD)/src/*.cpp)
 
 CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)

@@ -3,21 +3,22 @@
 echo "************************************************************************"
 echo "                   WARNING"
 echo "                   WORK IN PROGRESS"
-echo Compilation with make does not fully work.
+echo Compilation with make does NOT work.
 echo Make will compile without error but won\'t compile and link
 echo libtadah.lammps to necessary cmrc library.
 echo Use CMake instead. This works fine.
 echo You might need to remove build directory before running cmake.
 echo "************************************************************************"
 
-CORE_URL=https://git.ecdf.ed.ac.uk/tadah/core.git
+mkdir -p build
+
+CORE_URL=https://git.ecdf.ed.ac.uk/tadah/core.git 
 MODELS_URL=https://git.ecdf.ed.ac.uk/tadah/models.git
 MD_URL=https://git.ecdf.ed.ac.uk/tadah/md.git
-if ! git clone $CORE_URL CORE 2>/dev/null && [ -d CORE ] ; then  echo Skiping CORE clone as directory exists;  fi
-if ! git clone $MODELS_URL MODELS 2>/dev/null && [ -d MODELS ] ; then  echo Skipping MODELS clone as directory exists;  fi
-if ! git clone $MD_URL MD 2>/dev/null && [ -d MD ] ; then  echo Skipping MD clone as directory exists;  fi
+if ! git clone $CORE_URL build/CORE 2>/dev/null && [ -d CORE ] ; then  echo Skiping CORE clone as directory exists;  fi
+if ! git clone $MODELS_URL build/MODELS 2>/dev/null && [ -d MODELS ] ; then  echo Skipping MODELS clone as directory exists;  fi
+if ! git clone $MD_URL build/MD 2>/dev/null && [ -d MD ] ; then  echo Skipping MD clone as directory exists;  fi
 cp Makefile.in Makefile
 sed -i '1s/^/TADAH_MD_CONFIGURED=true\n/' Makefile
-mkdir -p build
 echo Configure done!
 echo Run make to compile

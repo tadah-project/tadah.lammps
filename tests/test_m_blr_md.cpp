@@ -1,7 +1,7 @@
 #include "catch2/catch.hpp"
-#include "../../CORE/config/config.h"
-#include "../../MODELS/functions/f_all.h"
-#include "../../MD/m_blr_md.h"
+#include <tadah/core/config.h>
+#include <tadah/models/functions/f_all.h>
+#include <tadah/md/m_blr_md.h>
 
 
 TEST_CASE( "Testing M_BLR_MD Constructor 1", "[M_BLR_MD(bf, config)]" ) {
