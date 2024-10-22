@@ -1,13 +1,19 @@
 lib=tadah.lammps
 dir=../../lib/$(lib)/build
 absdir=$(shell readlink -e $(dir))
-cmrc=../../lib/$(lib)/CORE/lib/cmrc-master
 
-static_lnk=-L$(dir) -l$(lib)
+toml=$(dir)/_deps/tadah.core-src/external/toml11
+core=$(dir)/_deps/tadah.core-src/include
+models=$(dir)/_deps/tadah.models-src/include
+md=$(dir)/_deps/tadah.md-src/include
+
+
+#static_lnk=-L$(dir) -l$(lib)
+static_lnk=-L$(dir) -l$(lib) -L$(dir)/_deps/tadah.core-build -ltadah.core -lconfig-resources  -L$(dir)/_deps/tadah.models-build -ltadah.models -L$(dir)/_deps/tadah.md-build -ltadah.md
 dynamic_lnk=-L$(dir) -l$(lib) -Wl,-rpath=$(absdir)
 tadah_obj_lnk=$(dir)/*.o
 
-tadah_inc=-I$(cmrc)
+tadah_inc=-I$(core) -I$(models) -I$(md) -I$(toml)
 tadah_lnk=$(static_lnk)
 #tadah_lnk=$(dynamic)
 #tadah_lnk=$(tadah_obj)

@@ -20,10 +20,10 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-#if(BUILD_SHARED_LIBS)
+if(BUILD_SHARED_LIBS)
 # The static library might be linked againt dynamic so we need PIC
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-#endif()
+endif()
 
 if (BUILD_SHARED_LIBS)
     # Always full RPATH
@@ -112,12 +112,9 @@ FetchContent_Declare(
     )
 FetchContent_MakeAvailable(Tadah.MD)
 
-file(GLOB CORE_SRC CONFIGURE_DEPENDS ${Tadah.CORE_SOURCE_DIR}/src/*)
-file(GLOB MODELS_SRC CONFIGURE_DEPENDS ${Tadah.MODELS_SOURCE_DIR}/src/*)
-file(GLOB MD_SRC CONFIGURE_DEPENDS ${Tadah.MD_SOURCE_DIR}/src/*)
-
-add_library(tadah.lammps lammps_tadah.cpp)
+add_library(tadah.lammps STATIC lammps_tadah.cpp)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
+target_link_libraries(tadah.lammps PUBLIC tadah.core)
 
 #target_include_directories(tadah.models PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 find_package(LAPACK)
