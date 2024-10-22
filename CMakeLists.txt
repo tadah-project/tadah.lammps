@@ -116,18 +116,14 @@ file(GLOB CORE_SRC CONFIGURE_DEPENDS ${Tadah.CORE_SOURCE_DIR}/src/*)
 file(GLOB MODELS_SRC CONFIGURE_DEPENDS ${Tadah.MODELS_SOURCE_DIR}/src/*)
 file(GLOB MD_SRC CONFIGURE_DEPENDS ${Tadah.MD_SOURCE_DIR}/src/*)
 
-add_library(tadah.lammps INTERFACE
-  #${CORE_SRC}
-  #${MODELS_SRC}
-  #${MD_SRC}
-  )
-target_link_libraries(tadah.lammps INTERFACE tadah.core)
-target_link_libraries(tadah.lammps INTERFACE tadah.models)
-target_link_libraries(tadah.lammps INTERFACE tadah.md)
+add_library(tadah.lammps lammps_tadah.cpp)
+target_link_libraries(tadah.lammps PUBLIC tadah.core)
+target_link_libraries(tadah.lammps PUBLIC tadah.models)
+target_link_libraries(tadah.lammps PUBLIC tadah.md)
 
 #target_include_directories(tadah.models PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 find_package(LAPACK)
-target_link_libraries (tadah.lammps INTERFACE ${LAPACK_LIBRARIES})
+target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
 #target_include_directories(tadah.lammps PUBLIC ${Tadah.MD_SOURCE_DIR}/include)
 #target_include_directories(tadah.lammps PUBLIC ${Tadah.MODELS_SOURCE_DIR}/include)
 #target_include_directories(tadah.lammps PUBLIC ${Tadah.CORE_SOURCE_DIR}/include)
