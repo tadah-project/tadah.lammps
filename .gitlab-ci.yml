@@ -57,5 +57,5 @@ build-ml-tadah:
   stage: build.release
   needs: [build-release-static]
   script:
-    - ./configure
-    - make -j ${CPU_BUILD}
+    - pwd
+    - ls -l
