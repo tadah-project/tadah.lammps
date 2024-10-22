@@ -117,8 +117,6 @@ file(GLOB MODELS_SRC CONFIGURE_DEPENDS ${Tadah.MODELS_SOURCE_DIR}/src/*)
 file(GLOB MD_SRC CONFIGURE_DEPENDS ${Tadah.MD_SOURCE_DIR}/src/*)
 
 add_library(tadah.lammps lammps_tadah.cpp)
-target_link_libraries(tadah.lammps PUBLIC tadah.core)
-target_link_libraries(tadah.lammps PUBLIC tadah.models)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 
 #target_include_directories(tadah.models PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
