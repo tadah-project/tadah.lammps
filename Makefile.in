@@ -9,18 +9,20 @@ CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BUILD_DIR:=$(ROOT_DIR)/build
 
-INC=-I$(ROOT_DIR)/CORE/lib/cmrc-master/
+INC=-I$(ROOT_DIR)/build/CORE/external/cmrc-master/
+INC+=-I$(ROOT_DIR)/build/CORE/external/toml11/
+INC+=-I$(ROOT_DIR)/build/CORE/include
+INC+=-I$(ROOT_DIR)/build/MODELS/include
+INC+=-I$(ROOT_DIR)/build/MD/include
 
-CORE:=$(ROOT_DIR)/CORE
-MODELS:=$(ROOT_DIR)/MODELS
-MD:=$(ROOT_DIR)/MD
+CORE:=$(ROOT_DIR)/build/CORE
+MODELS:=$(ROOT_DIR)/build/MODELS
+MD:=$(ROOT_DIR)/build/MD
 
-CORE_SRC := $(wildcard $(CORE)/*.cpp)
-CORE_SRC += $(wildcard $(CORE)/config/*.cpp)
-CORE_SRC += $(wildcard $(CORE)/utils/*.cpp)
-CORE_SRC := $(filter-out $(CORE)/lapack.cpp, $(CORE_SRC))
-MODELS_SRC := $(shell find $(MODELS) -name "*.cpp")
-MD_SRC := $(shell find $(MD) -maxdepth 1 -name "*.cpp")
+CORE_SRC := $(wildcard $(CORE)/src/*.cpp)
+CORE_SRC := $(filter-out $(CORE)/src/lapack.cpp, $(CORE_SRC))
+MODELS_SRC := $(wildcard $(MODELS)/src/*.cpp)
+MD_SRC := $(wildcard $(MD)/src/*.cpp)
 
 CORE_OBJ := $(CORE_SRC:%.cpp=$(BUILD_DIR)/%.o)
 MODELS_OBJ := $(MODELS_SRC:%.cpp=$(BUILD_DIR)/%.o)
