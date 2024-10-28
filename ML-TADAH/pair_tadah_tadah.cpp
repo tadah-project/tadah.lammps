@@ -917,15 +917,6 @@ void PairTadah::compute(int eflag, int vflag)
                 compute_2b_mb_full(eflag,vflag);
         }
     }
-
-    // Check for NaN pressure.
-    if (lt.c.get<bool>("CHECKPRESS")) {
-        for (size_t i=0;i<6;++i) {
-            if (std::isnan(virial[i])) {
-                throw std::runtime_error("Ta-dah! ERROR: NaN pressure\n");
-            }
-        }
-    }
 }
 
 /* ----------------------------------------------------------------------
