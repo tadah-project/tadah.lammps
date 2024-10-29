@@ -24,6 +24,7 @@ namespace TADAH {
       Config c;
       bool norm;
       size_t bias=0;
+      size_t dsize=0;
       double cutoff_max_sq;
       double cutoff_max;
       rhos_type rhos;

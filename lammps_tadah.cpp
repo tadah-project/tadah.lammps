@@ -101,7 +101,6 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
 
   // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
   // mind that it cannot be performed by the Config
-  size_t dsize=0;
   if (S.d2b->size()) {
     c.add("SIZE2B",S.d2b->size());
     dsize+=S.d2b->size();
