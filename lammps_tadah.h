@@ -30,14 +30,14 @@ namespace TADAH {
       aeds_type2 aeds;
       bool linear;
       bool dimer;
-      bool dimer_bond_bool;
       double dimer_r;
+      bool dimer_bond_bool;
 
       bool init2b;
       bool initmb;
 
       DC_Selector S;
-      std::vector<double> weights;
+      std::vector<double> watom;
       M_MD_Base *model=nullptr;
       Function_Base *fb=nullptr;
 

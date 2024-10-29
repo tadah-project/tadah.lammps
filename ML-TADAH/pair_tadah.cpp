@@ -11,53 +11,51 @@ the GNU General Public License.
 See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
-/* ----------------------------------------------------------------------
-   Contributing author: Marcin Kirsz (The University of Edinburgh)
-------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* Contributing author: Marcin Kirsz |   The University of Edinburgh    | */
+/*                                   |      marcin.kirsz@ed.ac.uk       | */
+/*                                   | https://git.ecdf.ed.ac.uk/tadah  | */
+/*----------------------------------------------------------------------- */
 
-#include "pair_tadah_tadah.h"
+#include "pair_tadah.h"
+
+#include "atom.h"
+#include "comm.h"
+#include "domain.h"
+#include "error.h"
+#include "fix.h"
+#include "force.h"
+#include "memory.h"
+#include "molecule.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
 
 #include <cmath>
 #include <cstring>
-#include "atom.h"
-#include "comm.h"
-#include "force.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "neigh_request.h"
-#include "memory.h"
-#include "error.h"
-#include "molecule.h"
-#include "domain.h"
 
 using namespace LAMMPS_NS;
-/* ---------------------------------------------------------------------- */
 
-PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
+PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp), map(nullptr)
 {
-    writedata = 0;
-    restartinfo = 0;
-    //single_enable = 0;
-    manybody_flag = 0;  // TODO req if else
-    scale = nullptr;
+  single_enable = 0; // 1 if single() method is implemented, 0 if missing
+  restartinfo = 0; // 1 if pair style writes its settings to a restart
+  one_coeff = 1; // 1 if only a pair_coeff * * command is allowed
 }
-/* ---------------------------------------------------------------------- */
 
 PairTadah::~PairTadah()
 {
-    if (allocated) {
-        memory->destroy(setflag);
-        memory->destroy(cutsq);
-        memory->destroy(scale);
-    }
+  if (allocated) {
+    memory->destroy(setflag);
+    memory->destroy(cutsq);
+    delete[] map;
+  }
 }
-/* ---------------------------------------------------------------------- */
 void PairTadah::compute_2b(int eflag, int vflag)
 {
     // Works only for linear regression with two-body descriptor.
     // Assumes weights are "normalised" so we
     // do not need to normalise descriptors.
-    //
     // Works for both newton on or off.
     int i,j,ii,jj,jnum;
     double xtmp,ytmp,ztmp,fpair,ei;
@@ -74,8 +72,8 @@ void PairTadah::compute_2b(int eflag, int vflag)
     Vec3d delij;
     //double delij[3];
 
-    aed_type2 aed(lt.c.get<size_t>("DSIZE"));
-    fd_type fd(lt.c.get<size_t>("DSIZE"));
+    aed_type2 aed(lt.dsize);
+    fd_type fd(lt.dsize);
 
     int inum = list->inum;
     ilist = list->ilist;
@@ -90,7 +88,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
         ztmp = x[i][2];
         jlist = firstneigh[i];
         jnum = numneigh[i];
-        //double iweight = lt.weights[type[i]-1];
+        //double iweight = lt.watom[type[i]-1];
 
         for (jj = 0; jj < jnum; jj++) {
             aed.set_zero();
@@ -103,7 +101,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
             if (rij_sq > lt.cutoff_max_sq) continue;
 
-            double jweight = lt.weights[type[j]-1];
+            double jweight = lt.watom[type[j]-1];
             //double ijw = iweight+jweight;   // TODO is this correct?
             double rij = sqrt(rij_sq);
             //double fc_ij = ijw*lt.S.c2b->calc(rij);
@@ -112,8 +110,8 @@ void PairTadah::compute_2b(int eflag, int vflag)
             double fcp_ij = jweight*lt.S.c2b->calc_prime(rij);
             lt.S.d2b->calc_all(rij,rij_sq,fc_ij,fcp_ij,aed, fd);
 
-            fpair = scale[type[i]][type[j]] * lt.model->fpredict(fd,aed,0)/rij;
-            ei = scale[type[i]][type[j]] * lt.model->epredict(aed);
+            fpair = lt.model->fpredict(fd,aed,0)/rij;
+            ei = lt.model->epredict(aed);
 
             f[i][0] += fpair*delij[0];
             f[i][1] += fpair*delij[1];
@@ -164,14 +162,14 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
     int newton_pair = force->newton_pair;
 
     // fpsize x 3-directions
-    fd_type fd(lt.c.get<size_t>("DSIZE"));
+    fd_type fd(lt.dsize);
 
     // grow arrays if necessary
     if (atom->nmax > nmax) {
         nmax = atom->nmax;
         size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
 		lt.rhos.resize(s,nmax);
-		lt.aeds.resize(lt.c.get<size_t>("DSIZE"),nmax);
+		lt.aeds.resize(lt.dsize,nmax);
     }
     lt.rhos.set_zero();
 
@@ -200,7 +198,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         jlist = firstneigh[i];
         jnum = numneigh[i];
 
-        double iweight = lt.weights[type[i]-1];
+        double iweight = lt.watom[type[i]-1];
         for (jj = 0; jj < jnum; jj++) {
             j = jlist[jj];
             j &= NEIGHMASK;
@@ -212,7 +210,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
             if (rij_sq > lt.cutoff_max_sq) continue;
             double rij = sqrt(rij_sq);
-            double jweight = lt.weights[type[j]-1];
+            double jweight = lt.watom[type[j]-1];
 
             if (lt.S.c2b->get_rcut() > rij) {
                 double fc2b = lt.S.c2b->calc(rij);
@@ -260,13 +258,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         if (lt.norm)
             lt.model->norm.normalise(lt.aeds.col(i));
 
-        // TODO The proper way is to scale manybody energy by scale[i][i]
-        // and pairwise energy by scale[i][j]
-        // In otherwords thermodynamic integration will
-        // probably work for single species systems only
-        // This applies to all tadah compute methods apart from compute_2b
-        // which should be fine
-        double ei = scale[type[i]][type[i]] * lt.model->epredict(lt.aeds.col(i));
+        double ei = lt.model->epredict(lt.aeds.col(i));
         if (eflag_atom) eatom[i] = ei;
         if (eflag_global) eng_vdwl += ei;
     }
@@ -284,7 +276,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
         jlist = firstneigh[i];
         jnum = numneigh[i];
-        double iweight = lt.weights[type[i]-1];
+        double iweight = lt.watom[type[i]-1];
         for (jj = 0; jj < jnum; jj++) {
             fd.set_zero();
             j = jlist[jj];
@@ -295,7 +287,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
             rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
             if (rij_sq > lt.cutoff_max_sq) continue;
             double rij = sqrt(rij_sq);
-            double jweight = lt.weights[type[j]-1];
+            double jweight = lt.watom[type[j]-1];
 
             if (lt.S.c2b->get_rcut() > rij) {
                 //double ijw = iweight+jweight;
@@ -317,7 +309,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
                 if (lt.norm)
                     lt.model->norm.normalise(fd,0);
                 // mode==0 only x-component is calculated for both 2b and mb
-                double fpair = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
+                double fpair = lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
 
                 f[i][0] += delij[0]*fpair;
                 f[i][1] += delij[1]*fpair;
@@ -349,7 +341,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
                 // for mode!=0 we don't need to scale mb part by delij/rij
                 // as S.dmb calculator does it.
-                Vec3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
+                Vec3d f_eam = lt.model->fpredict(fd,lt.aeds.col(i));
 
                 f[i][0] += f_eam(0);
                 f[i][1] += f_eam(1);
@@ -393,14 +385,14 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     int newton_pair = force->newton_pair;
 
     // fpsize x 3-directions
-    fd_type fd(lt.c.get<size_t>("DSIZE"));
+    fd_type fd(lt.dsize);
 
     // grow arrays if necessary
     if (atom->nmax > nmax) {
         nmax = atom->nmax;
         size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
         lt.rhos.resize(s,nmax);
-        lt.aeds.resize(lt.c.get<size_t>("DSIZE"), nmax);
+        lt.aeds.resize(lt.dsize, nmax);
     }
 
     //for (i = 0; i < nlocal; i++) {
@@ -432,7 +424,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
             if (rij_sq > lt.cutoff_max_sq) continue;
             double rij = sqrt(rij_sq);
-            double jweight = lt.weights[type[j]-1];
+            double jweight = lt.watom[type[j]-1];
 
             if (lt.S.c2b->get_rcut() > rij) {
                 double fc2b = lt.S.c2b->calc(rij);
@@ -465,7 +457,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
         if (lt.norm)
             lt.model->norm.normalise(lt.aeds.col(i));
 
-        double ei = scale[type[i]][type[i]] * lt.model->epredict(lt.aeds.col(i));
+        double ei = lt.model->epredict(lt.aeds.col(i));
         if (eflag_atom) eatom[i] = ei;
         if (eflag_global) eng_vdwl += ei;
     }
@@ -485,7 +477,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
         jlist = firstneigh[i];
         jnum = numneigh[i];
-        // double iweight = lt.weights[type[i]-1];
+        // double iweight = lt.watom[type[i]-1];
         for (jj = 0; jj < jnum; jj++) {
             fd.set_zero();
             j = jlist[jj];
@@ -497,7 +489,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
             if (rij_sq > lt.cutoff_max_sq) continue;
             double rij = sqrt(rij_sq);
 
-            double jweight = lt.weights[type[j]-1];
+            double jweight = lt.watom[type[j]-1];
 
             if (lt.S.c2b->get_rcut() > rij) {
                 double fc2b = 0.5*jweight*lt.S.c2b->calc(rij);
@@ -520,7 +512,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
                 if (lt.norm)
                     lt.model->norm.normalise(fd,0);
                 // mode==0 only x-component is calculated for both 2b and mb
-                double fpair = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
+                double fpair = lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
 
                 f[i][0] += delij[0]*fpair;
                 f[i][1] += delij[1]*fpair;
@@ -551,7 +543,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
                 // for mode!=0 we don't need to scale mb part by delij/rij
                 // as S.dmb calculator does it.
-                Vec3d f_eam = scale[type[i]][type[j]] * lt.model->fpredict(fd,lt.aeds.col(i));
+                Vec3d f_eam = lt.model->fpredict(fd,lt.aeds.col(i));
 
                 f[i][0] += f_eam(0);
                 f[i][1] += f_eam(1);
@@ -592,8 +584,8 @@ void PairTadah::compute_dimers(int eflag, int vflag)
     tagint **special = atom->special;
     int **nspecial = atom->nspecial;
 
-    fd_type fdIJ(lt.c.get<size_t>("DSIZE"));
-    fd_type fdJI(lt.c.get<size_t>("DSIZE"));
+    fd_type fdIJ(lt.dsize);
+    fd_type fdJI(lt.dsize);
 
     //n= 0, 1, 2, 3
     int i1,i2,j1,j2;
@@ -707,7 +699,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                 int n = nspecial[j1][0]; // number of bonded atoms either 0 or 1
 
                 if (n==0)
-                    throw std::runtime_error("Ta-dah! No bonded atom found.\n");
+                    throw std::runtime_error("Tadah! No bonded atom found.\n");
 
                 j2 = special[j1][0];    // j2 is a global index now, j1 is local
                 j2 = atom->map(j2); // convert global j2 to local j2
@@ -722,7 +714,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             }
 
             if (j2==-1)
-                throw std::runtime_error("Ta-dah! No bonded atom found v1.\n");
+                throw std::runtime_error("Tadah! No bonded atom found v1.\n");
 
             // Finally mark but only once we have j1 and j2
             if (jmarkflag[j2]) continue;
@@ -735,7 +727,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             }
 
             if (!found) {
-                throw std::runtime_error("Ta-dah! No bonded atom found v2.\n");
+                throw std::runtime_error("Tadah! No bonded atom found v2.\n");
             }
 
 
@@ -800,7 +792,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                 if (IJ[n]<atom->nlocal) {
                     int I=IJ[midx[n].first];
                     int J=IJ[midx[n].second];
-                    double ei = scale[type[I]][type[J]] *lt.model->epredict(lt.aeds.col(n));
+                    double ei = lt.model->epredict(lt.aeds.col(n));
                     if (eflag_atom) eatom[IJ[n]] = ei;
                     if (eflag_global) eng_vdwl += ei;
                 }
@@ -834,10 +826,10 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                         lt.model->norm.normalise(fdIJ,0);
                     double fpair = lt.model->fpredict(
                             fdIJ,lt.aeds.col(midx[n].first),0)/r[n];
-                    //fpair -= scale[type[I]][type[J]] * lt.model->fpredict(
+                    //fpair -= lt.model->fpredict(
                     //        -fdIJ,lt.aeds.col(midx[n].second),0)/r[n];
                     // -fdIJ is removed from the math library
-                    fpair += scale[type[I]][type[J]] * lt.model->fpredict(
+                    fpair += lt.model->fpredict(
                             fdIJ,lt.aeds.col(midx[n].second),0)/r[n];
 
                     f[I][0] += fpair*delM(n,0);
@@ -876,7 +868,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
                         lt.model->norm.normalise(fdJI);
                     }
 
-                    Vec3d f_eam = scale[type[I]][type[J]] *lt.model->fpredict(fdIJ,lt.aeds.col(midx[n].first));
+                    Vec3d f_eam = lt.model->fpredict(fdIJ,lt.aeds.col(midx[n].first));
                     f_eam -= lt.model->fpredict(fdJI,lt.aeds.col(midx[n].second));
 
                     f[I][0] += f_eam(0);
@@ -899,177 +891,123 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
 }
 void PairTadah::compute(int eflag, int vflag)
+  // REQUIRED
 {
+
     if (lt.dimer) {
-        compute_dimers(eflag,vflag);
-    }
-    else {
-        if (lt.c.get<bool>("INITMB")) {
-            if (lt.linear)
-                compute_2b_mb_half(eflag,vflag);
-            else
-                compute_2b_mb_full(eflag,vflag);
-        }
-        else {
-            if (lt.linear)
-                compute_2b(eflag,vflag);
-            else
-                compute_2b_mb_full(eflag,vflag);
-        }
+      compute_dimers(eflag, vflag);
+    } else if (lt.linear && lt.initmb) {
+      compute_2b_mb_half(eflag, vflag);
+    } else if (lt.linear /*&& !lt.initmb*/) {
+      compute_2b(eflag, vflag);
+    } else {
+      compute_2b_mb_full(eflag, vflag);
     }
 }
 
-/* ----------------------------------------------------------------------
-   allocate all arrays
-   ------------------------------------------------------------------------- */
-
+// allocate arrays
 void PairTadah::allocate()
 {
-    if (!allocated) {
-        int n = atom->ntypes;
-        memory->create(setflag,n+1,n+1,"pair:setflag");
-        memory->create(cutsq,n+1,n+1,"pair:cutsq");
-        memory->create(scale,n+1,n+1,"pair:scale");
-    }
-    allocated = 1;
+  int n = atom->ntypes+1;
+  map = new int[n];
+  memory->create(cutsq,n,n,"pair:cutsq");
+  memory->create(setflag,n,n,"pair:setflag");
+  for (int i = 1; i < n-1; i++)
+    for (int j = i; j < n-1; j++) setflag[i][j] = 0;
+
+  allocated = 1;
 }
 
-/* ----------------------------------------------------------------------
-   global settings
-   ------------------------------------------------------------------------- */
-
+// REQUIRED processes the arguments to the pair_style command
 void PairTadah::settings(int narg, char **arg)
 {
-    if (narg != 0) error->all(FLERR,"Illegal pair_style command");
+  // pair_style tadah
+  if (narg != 0) utils::missing_cmd_args(FLERR, "pair_style tadah", error);
+
+  lt=TADAH::LammpsTadah(narg,arg);
+
+  manybody_flag = lt.initmb || !lt.linear ? 1 : 0;
+
+  if (lt.dimer) {
+    manybody_flag=0;
+    /*  [0] i1-i2    (i1)-[2]-(j1)
+     *  [1] j1-j2     | \    / |
+     *  [2] i1-j1     | [4] /  |
+     *  [3] i2-j2    [0]  \/  [1]
+     *  [4] i1-j2     |   /\   |
+     *  [5] i2-j1     | [5] \  |   
+     *                | /    \ |   
+     *               (i2)-[3]-(j2)
+     *
+     *  This compute only works with rigid bonds.
+     *  Style shake is your friend
+     *  fix fixSHAKE all shake 1e-5 20 0 b ${bondlength}
+     *  For now we assume that the distance between 
+     *  atoms of two interacting molecules is always
+     *  greater than the bond distance.
+     * 
+     *  i1---i2-----------------j1---j2
+     *     |-------r_com-----------|   
+     *   |---------r_max-------------|
+     *
+     */
+    midx.resize(6);
+    midx[0] = std::make_pair(0,1);
+    midx[1] = std::make_pair(2,3);
+    midx[2] = std::make_pair(0,2);
+    midx[3] = std::make_pair(1,3);
+    midx[4] = std::make_pair(0,3);
+    midx[5] = std::make_pair(1,2);   
+    lt.aeds.resize(lt.dsize,4);
+
+    if (lt.initmb) {
+      size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
+      lt.rhos.resize(s,4);
+    }
+  }
+  if (lt.linear) {
+    comm_reverse = lt.S.dmb->rhoi_size()+lt.S.d2b->size();
+    comm_forward = lt.S.dmb->rhoip_size();
+  }
+  else {
+    comm_reverse = lt.S.dmb->rhoi_size()+lt.S.d2b->size();
+    comm_forward = lt.S.dmb->rhoip_size()+lt.S.d2b->size()+lt.S.dmb->size();
+  }
 }
 
-/* ----------------------------------------------------------------------
-   SEt coeffs for one or more type pairs
-   ------------------------------------------------------------------------- */
-
+// REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
 void PairTadah::coeff(int narg, char **arg)
 {
-    if (narg != 3 + atom->ntypes)
-        error->all(FLERR,"Incorrect args for pair coefficients");
 
-    if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
-        error->all(FLERR,"Incorrect args for pair coefficients");
+  if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
+    error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
 
-    if (!allocated) allocate();
+  if (!allocated) allocate();
 
-    lt=TADAH::LammpsTadah(narg,arg);
+  // e.g. pair_coeff * * pot.tadah Ta Nb NULL
+  map_element2type(narg - 3, arg + 3, true);
 
-    if (lt.c.get<bool>("INITMB"))
-        manybody_flag++;
-    if (lt.dimer) {
-        manybody_flag=0;
-        /*  [0] i1-i2    (i1)-[2]-(j1)
-         *  [1] j1-j2     | \    / |
-         *  [2] i1-j1     | [4] /  |
-         *  [3] i2-j2    [0]  \/  [1]
-         *  [4] i1-j2     |   /\   |
-         *  [5] i2-j1     | [5] \  |   
-         *                | /    \ |   
-         *               (i2)-[3]-(j2)
-         *
-         *  This compute only works with rigid bonds.
-         *  Style shake is your friend
-         *  fix fixSHAKE all shake 1e-5 20 0 b ${bondlength}
-         *  For now we assume that the distance between 
-         *  atoms of two interacting molecules is always
-         *  greater than the bond distance.
-         * 
-         *  i1---i2-----------------j1---j2
-         *     |-------r_com-----------|   
-         *   |---------r_max-------------|
-         *
-         */
-        midx.resize(6);
-        midx[0] = std::make_pair(0,1);
-        midx[1] = std::make_pair(2,3);
-        midx[2] = std::make_pair(0,2);
-        midx[3] = std::make_pair(1,3);
-        midx[4] = std::make_pair(0,3);
-        midx[5] = std::make_pair(1,2);   
-        lt.aeds.resize(lt.c.get<size_t>("DSIZE"),4);
-
-        if (lt.initmb) {
-            size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
-            lt.rhos.resize(s,4);
-        }
-    }
-    if (lt.linear) {
-        comm_reverse = lt.S.dmb->rhoi_size()+lt.S.d2b->size();
-        comm_forward = lt.S.dmb->rhoip_size();
-    }
-    else {
-        comm_reverse = lt.S.dmb->rhoi_size()+lt.S.d2b->size();
-        comm_forward = lt.S.dmb->rhoip_size()+lt.S.d2b->size()+lt.S.dmb->size();
-    }
-
-    int ilo,ihi,jlo,jhi;
-    utils::bounds(FLERR,arg[0],1,atom->ntypes,ilo,ihi,error);
-    utils::bounds(FLERR,arg[1],1,atom->ntypes,jlo,jhi,error);
-    int count = 0;
-    for (int i = ilo; i <= ihi; i++) {
-        for (int j = MAX(jlo,i); j <= jhi; j++) {
-            setflag[i][j] = 1;
-            scale[i][j] = 1.0;
-            count++;
-        }
-    }
-
-    if (count == 0) error->all(FLERR,"Incorrect args for pair coefficients");
 }
 
-/* ----------------------------------------------------------------------
-   init for one type pair i,j and corresponding j,i
-   ------------------------------------------------------------------------- */
-
-double PairTadah::init_one(int i, int j)
-{
-    if (setflag[i][j] == 0) error->all(FLERR,"All pair coeffs are not set");
-    if (setflag[i][j] == 0) scale[i][j] = 1.0;
-    scale[j][i] = scale[i][j];
-    //return lt.cutoff(i,j);
-    return lt.c.get<double>("RCUTMAX"); // TODO
-}
 void PairTadah::init_style()
+  // optional: style initialization: request neighbor list(s), error checks
 {
     if (atom->tag_enable == 0)
-        error->all(FLERR,"Pair style tadah/tadah requires atom IDs");
+        error->all(FLERR,"Pair style tadah requires atom IDs");
 
     neighbor->request(this,instance_me);
 
     if (lt.dimer) {
-        neighbor->add_request(this, NeighConst::REQ_FULL);
-        if (force->newton_pair)
-            error->all(FLERR,"Pair style tadah/tadah requires newton pair off for this potential.");
+      neighbor->add_request(this, NeighConst::REQ_FULL);
+      if (force->newton_pair)
+        error->all(FLERR,"Pair style tadah requires newton pair off for this potential.");
+    } else if (lt.linear) {
+      neighbor->add_request(this);
+    } else {
+      if (force->newton_pair == 0)
+        error->all(FLERR,"Pair style tadah requires newton pair on for this potential.");
+      neighbor->add_request(this, NeighConst::REQ_FULL);
     }
-    else {
-
-        if (lt.c.get<bool>("INITMB")) {
-            if (lt.linear) {
-                neighbor->add_request(this);
-            }
-            else {
-                if (force->newton_pair == 0)
-                    error->all(FLERR,"Pair style tadah/tadah requires newton pair on for this potential.");
-                neighbor->add_request(this, NeighConst::REQ_FULL);
-            }
-        }
-        else {
-            if (lt.linear) {
-                neighbor->add_request(this);
-            }
-            else {
-                if (force->newton_pair == 0)
-                    error->all(FLERR,"Pair style tadah/tadah requires newton pair on for this potential.");
-                neighbor->add_request(this, NeighConst::REQ_FULL);
-            }
-        }
-    }
-
 }
 /* ---------------------------------------------------------------------- */
 int PairTadah::pack_reverse_comm(int n, int first, double *buf)
@@ -1103,10 +1041,4 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
         lt.unpack_forward_linear(n,first,buf);
     else
         lt.unpack_forward_nonlinear(n,first,buf);
-}
-void *PairTadah::extract(const char *str, int &dim)
-{
-  dim = 2;
-  if (strcmp(str,"scale") == 0) return (void *) scale;
-  return nullptr;
 }

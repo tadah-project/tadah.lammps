@@ -16,7 +16,7 @@ LammpsTadah &LammpsTadah::operator=(const LammpsTadah& lt)
   dimer_r=lt.dimer_r;
   init2b=lt.init2b;
   initmb=lt.initmb;
-  weights=lt.weights;
+  watom=lt.watom;
   S=lt.S;
   // We need deep copy for fb and model.
   // For now we just init them the same way
@@ -44,7 +44,7 @@ LammpsTadah &LammpsTadah::operator=(LammpsTadah& lt)
   std::swap(initmb,lt.initmb);
   std::swap(fb,lt.fb);
   std::swap(model,lt.model);
-  std::swap(weights,lt.weights);
+  std::swap(watom,lt.watom);
   S=lt.S;
   aeds=lt.aeds;
   rhos=lt.rhos;
@@ -54,6 +54,7 @@ LammpsTadah::LammpsTadah():
   model(nullptr),
   fb(nullptr)
 {};
+
 LammpsTadah::LammpsTadah(int narg, char **arg):
   c(arg[2]),
   norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
@@ -62,8 +63,8 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   cutoff_max(c.get<double>("RCUTMAX")),
   linear(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear"),
   dimer(c.get<bool>("DIMER",0)),
-  dimer_bond_bool(dimer ? c.get<bool>("DIMER",2) : false),
-  dimer_r(dimer ? c.get<double>("DIMER",1) : 0),
+  dimer_r(c.get<double>("DIMER",1)),
+  dimer_bond_bool(c.get<bool>("DIMER",2)),
   init2b(c.get<bool>("INIT2B")),
   initmb(c.get<bool>("INITMB")),
   S(c),
@@ -78,12 +79,13 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb
   PeriodicTable pt;
-  weights.resize(narg-3);
+  watom.resize(narg-3);
   for (int i=3; i<narg; ++i) {
-    weights[i-3] = pt.find_by_symbol(arg[i]).Z;
+    watom[i-3] = pt.find_by_symbol(arg[i]).Z; // TODO modify to use optimised weights
   }
 
   // model does not need to know what calculators are being used
+  // TODO this check is redundant and should be either performed by Config or not at all
   if (c.size("MODEL")!=2)
     throw std::runtime_error("MODEL keyword requires two values\n\
         e.g. MODEL M_BLR BF_Linear\n");
@@ -97,11 +99,13 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   if (c.get<bool>("BIAS"))
     bias++;
 
-  // add INTERNAL_KEYS
+  // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
+  // mind that it cannot be performed by the Config
   size_t dsize=0;
   if (S.d2b->size()) {
     c.add("SIZE2B",S.d2b->size());
     dsize+=S.d2b->size();
+    S.d2b->fidx=bias;
   }
   else {
     c.add("SIZE2B",0);
@@ -110,6 +114,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   if (S.dmb->size()) {
     c.add("SIZEMB",S.dmb->size());
     dsize+=S.dmb->size();
+    S.dmb->fidx=bias+S.d2b->size();
   }
   else {
     c.add("SIZEMB",0);
