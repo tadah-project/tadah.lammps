@@ -53,6 +53,7 @@ namespace LAMMPS_NS {
 
       // OPTIONAL
       void init_style() override;
+      double init_one(int i, int j) override;
       int pack_forward_comm(int, int *, double *, int, int *) override;
       void unpack_forward_comm(int, int, double *) override;
       int pack_reverse_comm(int, int, double *) override;

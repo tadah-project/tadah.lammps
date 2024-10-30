@@ -50,317 +50,302 @@ PairTadah::~PairTadah()
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
-    delete[] map;
+    //  delete[] map; // deleted elsewhere
   }
 }
 void PairTadah::compute_2b(int eflag, int vflag)
 {
-    // Works only for linear regression with two-body descriptor.
-    // Assumes weights are "normalised" so we
-    // do not need to normalise descriptors.
-    // Works for both newton on or off.
-    int i,j,ii,jj,jnum;
-    double xtmp,ytmp,ztmp,fpair,ei;
-    double rij_sq;
-    int *ilist,*jlist,*numneigh,**firstneigh;
+  // Works only for linear regression with two-body descriptor.
+  // Assumes weights are "normalised" so we
+  // do not need to normalise descriptors.
+  // Works for both newton on or off.
+  int i,j,ii,jj,jnum;
+  double xtmp,ytmp,ztmp,fpair,ei;
+  double rij_sq;
+  int *ilist,*jlist,*numneigh,**firstneigh;
 
-    ev_init(eflag,vflag);
+  ev_init(eflag,vflag);
 
-    double **x = atom->x;
-    double **f = atom->f;
+  double **x = atom->x;
+  double **f = atom->f;
 
-    int *type = atom->type;
-    int nlocal = atom->nlocal;
-    Vec3d delij;
-    //double delij[3];
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  Vec3d delij;
 
-    aed_type2 aed(lt.dsize);
-    fd_type fd(lt.dsize);
+  aed_type2 aed(lt.dsize);
+  fd_type fd(lt.dsize);
 
-    int inum = list->inum;
-    ilist = list->ilist;
-    numneigh = list->numneigh;
-    firstneigh = list->firstneigh;
-    int newton_pair = force->newton_pair;
+  int inum = list->inum;
+  ilist = list->ilist;
+  numneigh = list->numneigh;
+  firstneigh = list->firstneigh;
+  int newton_pair = force->newton_pair;
 
-    for (ii = 0; ii < inum; ii++) {
-        i = ilist[ii];
-        xtmp = x[i][0];
-        ytmp = x[i][1];
-        ztmp = x[i][2];
-        jlist = firstneigh[i];
-        jnum = numneigh[i];
-        //double iweight = lt.watom[type[i]-1];
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+    //double iweight = lt.watom[type[i]-1];
 
-        for (jj = 0; jj < jnum; jj++) {
-            aed.set_zero();
-            j = jlist[jj];
-            j &= NEIGHMASK;
-            delij[0] = xtmp - x[j][0];
-            delij[1] = ytmp - x[j][1];
-            delij[2] = ztmp - x[j][2];
-            rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+    for (jj = 0; jj < jnum; jj++) {
+      aed.set_zero();
+      j = jlist[jj];
+      j &= NEIGHMASK;
+      delij[0] = xtmp - x[j][0];
+      delij[1] = ytmp - x[j][1];
+      delij[2] = ztmp - x[j][2];
+      rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
 
-            if (rij_sq > lt.cutoff_max_sq) continue;
+      if (rij_sq > lt.cutoff_max_sq) continue;
 
-            double jweight = lt.watom[type[j]-1];
-            //double ijw = iweight+jweight;   // TODO is this correct?
-            double rij = sqrt(rij_sq);
-            //double fc_ij = ijw*lt.S.c2b->calc(rij);
-            //double fcp_ij = ijw*lt.S.c2b->calc_prime(rij);
-            double fc_ij = jweight*lt.S.c2b->calc(rij);
-            double fcp_ij = jweight*lt.S.c2b->calc_prime(rij);
-            lt.S.d2b->calc_all(rij,rij_sq,fc_ij,fcp_ij,aed, fd);
+      double jweight = lt.watom[type[j]-1];
+      //double ijw = iweight+jweight;   // TODO is this correct?
+      double rij = sqrt(rij_sq);
+      //double fc_ij = ijw*lt.S.c2b->calc(rij);
+      //double fcp_ij = ijw*lt.S.c2b->calc_prime(rij);
+      double fc_ij = jweight*lt.S.c2b->calc(rij);
+      double fcp_ij = jweight*lt.S.c2b->calc_prime(rij);
+      lt.S.d2b->calc_all(rij,rij_sq,fc_ij,fcp_ij,aed, fd);
 
-            fpair = lt.model->fpredict(fd,aed,0)/rij;
-            ei = lt.model->epredict(aed);
+      fpair = lt.model->fpredict(fd,aed,0)/rij;
+      ei = lt.model->epredict(aed);
 
-            f[i][0] += fpair*delij[0];
-            f[i][1] += fpair*delij[1];
-            f[i][2] += fpair*delij[2];
+      f[i][0] += fpair*delij[0];
+      f[i][1] += fpair*delij[1];
+      f[i][2] += fpair*delij[2];
 
-            if (newton_pair || j < nlocal) {
-                f[j][0] -= fpair*delij[0];
-                f[j][1] -= fpair*delij[1];
-                f[j][2] -= fpair*delij[2];
-            }
+      if (newton_pair || j < nlocal) {
+        f[j][0] -= fpair*delij[0];
+        f[j][1] -= fpair*delij[1];
+        f[j][2] -= fpair*delij[2];
+      }
 
-            if (evflag) ev_tally(i,j,nlocal,newton_pair,ei,0.0,fpair,delij[0],delij[1],delij[2]);
-        }
-
-        aed.set_zero();
-        if (lt.bias)
-            aed(0) = 1.0;
-        ei = lt.model->epredict(aed);   // This is to get constant shift in E
-        if (eflag_atom) eatom[i] += ei;
-        if (eflag_global) eng_vdwl += ei;
+      if (evflag) ev_tally(i,j,nlocal,newton_pair,ei,0.0,fpair,delij[0],delij[1],delij[2]);
     }
 
-    if (vflag_fdotr)  virial_fdotr_compute();
+    aed.set_zero();
+    if (lt.bias)
+      aed(0) = 1.0;
+    ei = lt.model->epredict(aed);   // This is to get constant shift in E
+    if (eflag_atom) eatom[i] += ei;
+    if (eflag_global) eng_vdwl += ei;
+  }
+
+  if (vflag_fdotr)  virial_fdotr_compute();
 }
 void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 {
-    // Works for both D2 and DM descriptor with Linear models
-    int i,j,ii,jj,jnum;
-    double xtmp,ytmp,ztmp;
-    double rij_sq;
-    int *ilist,*jlist,*numneigh,**firstneigh;
+  // Works for both D2 and DM descriptor with Linear models
+  int i,j,ii,jj,jnum;
+  double xtmp,ytmp,ztmp;
+  double rij_sq;
+  int *ilist,*jlist,*numneigh,**firstneigh;
 
-    ev_init(eflag,vflag);
+  ev_init(eflag,vflag);
 
-    double **x = atom->x;
-    double **f = atom->f;
+  double **x = atom->x;
+  double **f = atom->f;
 
-    int *type = atom->type;
-    int nlocal = atom->nlocal;
-    //int nall = nlocal + atom->nghost;
-    Vec3d delij;
-    //double delij[3];
+  int *type = atom->type;
+  int nlocal = atom->nlocal;
+  Vec3d delij;
 
-    int inum = list->inum;
-    ilist = list->ilist;
-    numneigh = list->numneigh;
-    firstneigh = list->firstneigh;
-    int newton_pair = force->newton_pair;
+  int inum = list->inum;
+  ilist = list->ilist;
+  numneigh = list->numneigh;
+  firstneigh = list->firstneigh;
+  int newton_pair = force->newton_pair;
 
-    // fpsize x 3-directions
-    fd_type fd(lt.dsize);
+  // fpsize x 3-directions
+  fd_type fd(lt.dsize);
 
-    // grow arrays if necessary
-    if (atom->nmax > nmax) {
-        nmax = atom->nmax;
-        size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
-		lt.rhos.resize(s,nmax);
-		lt.aeds.resize(lt.dsize,nmax);
-    }
-    lt.rhos.set_zero();
+  // grow arrays if necessary
+  if (atom->nmax > nmax) {
+    nmax = atom->nmax;
+    size_t s = lt.S.dmb->rhoi_size()+ lt.S.dmb->rhoip_size();
+    lt.rhos.resize(s,nmax);
+    lt.aeds.resize(lt.dsize,nmax);
+  }
 
-    lt.aeds.set_zero();
-    if (lt.bias)
-        for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(0,n) = 1.0;
+  lt.rhos.set_zero();
+  lt.aeds.set_zero();
 
-    //if (newton_pair || lt.initmb) {
-    //    for (i = 0; i < nall; i++) {
-    //        lt.aeds[i].set_zero();
-    //        if (lt.bias)
-    //            lt.aeds[i](0) = 1.0;
-    //    }
-    //}
-    //else for (i = 0; i < nlocal; i++) {
-    //    lt.aeds[i].set_zero();
-    //    if (lt.bias)
-    //        lt.aeds[i](0) = 1.0;
-    //}
+  if (lt.bias)
+    for (size_t n=0; n<lt.aeds.cols(); ++n )lt.aeds(n,0) = 1.0;
 
-    for (ii = 0; ii < inum; ii++) {
-        i = ilist[ii];
-        xtmp = x[i][0];
-        ytmp = x[i][1];
-        ztmp = x[i][2];
-        jlist = firstneigh[i];
-        jnum = numneigh[i];
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
 
-        double iweight = lt.watom[type[i]-1];
-        for (jj = 0; jj < jnum; jj++) {
-            j = jlist[jj];
-            j &= NEIGHMASK;
+    double iweight = lt.watom[type[i]-1];
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      j &= NEIGHMASK;
 
-            delij[0] = xtmp - x[j][0];
-            delij[1] = ytmp - x[j][1];
-            delij[2] = ztmp - x[j][2];
-            rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+      delij[0] = xtmp - x[j][0];
+      delij[1] = ytmp - x[j][1];
+      delij[2] = ztmp - x[j][2];
+      rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
 
-            if (rij_sq > lt.cutoff_max_sq) continue;
-            double rij = sqrt(rij_sq);
-            double jweight = lt.watom[type[j]-1];
+      if (rij_sq > lt.cutoff_max_sq) continue;
+      double rij = sqrt(rij_sq);
+      double jweight = lt.watom[type[j]-1];
 
-            if (lt.S.c2b->get_rcut() > rij) {
-                double fc2b = lt.S.c2b->calc(rij);
-                lt.S.d2b->calc_aed(rij,rij_sq,jweight*fc2b,lt.aeds.col(i));
+      if (lt.S.c2b->get_rcut() > rij) {
+        double fc2b = lt.S.c2b->calc(rij);
+        lt.S.d2b->calc_aed(rij,rij_sq,jweight*fc2b,lt.aeds.col(i));
 
-                if (newton_pair || j < nlocal) {
-                    lt.S.d2b->calc_aed(rij,rij_sq,iweight*fc2b,lt.aeds.col(j));
-                }
-            }
-
-            if (lt.S.cmb->get_rcut() > rij) {
-                double fcmb = lt.S.cmb->calc(rij);
-                lt.S.dmb->calc_rho(rij,rij_sq,jweight*fcmb,delij,lt.rhos.col(i));
-
-                if (newton_pair || j < nlocal) {
-                    lt.S.dmb->calc_rho(rij,rij_sq,iweight*fcmb,-delij,lt.rhos.col(j));
-                }
-            }
+        if (newton_pair || j < nlocal) {
+          lt.S.d2b->calc_aed(rij,rij_sq,iweight*fc2b,lt.aeds.col(j));
         }
+      }
+
+      if (lt.S.cmb->get_rcut() > rij) {
+        double fcmb = lt.S.cmb->calc(rij);
+        lt.S.dmb->calc_rho(rij,rij_sq,jweight*fcmb,delij,lt.rhos.col(i));
+
+        if (newton_pair || j < nlocal) {
+          lt.S.dmb->calc_rho(rij,rij_sq,iweight*fcmb,-delij,lt.rhos.col(j));
+        }
+      }
     }
+  }
 
-    // Communicate and sum densities for EAM.
-    // Also communicate 2b aeds if newton is on.
-    if (comm_reverse && newton_pair) {
-        comm->reverse_comm(this);
-        //comm->reverse_comm_pair(this);
-    }
+  // Communicate and sum densities for EAM.
+  // Also communicate 2b aeds if newton is on.
+  if (comm_reverse && newton_pair) {
+    comm->reverse_comm(this);
+    //comm->reverse_comm_pair(this);
+  }
 
-    // compute AEFP for all eam-types
-    // for EAM the derivative of embedding energy at each atom
-    // is also computed here
-    for (ii = 0; ii < inum; ii++) {
-        i = ilist[ii];
-        // we have to scale 2b energy by 0.5
-        // we can't do it in the loop above because
-        // if dummy cutoff is used or d2_eam with dm_eam
-        // cutoff is ignored and that is the only way now to
-        // introduce factor into 2b aed.
-        // Hence we scale 2b part of descriptor by 0.5
-        // before MB aed is calculated
-        lt.aeds.col(i)*=0.5;
+  // compute AEFP for all eam-types
+  // for EAM the derivative of embedding energy at each atom
+  // is also computed here
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    // we have to scale 2b energy by 0.5
+    // we can't do it in the loop above because
+    // if dummy cutoff is used or d2_eam with dm_eam
+    // cutoff is ignored and that is the only way now to
+    // introduce factor into 2b aed.
+    // Hence we scale 2b part of descriptor by 0.5
+    // before MB aed is calculated
+    lt.aeds.col(i)*=0.5;
 
-        lt.S.dmb->calc_aed(lt.rhos.col(i), lt.aeds.col(i));
+    lt.S.dmb->calc_aed(lt.rhos.col(i), lt.aeds.col(i));
 
+    if (lt.norm)
+      lt.model->norm.normalise(lt.aeds.col(i));
+
+    double ei = lt.model->epredict(lt.aeds.col(i));
+    if (eflag_atom) eatom[i] = ei;
+    if (eflag_global) eng_vdwl += ei;
+  }
+
+  // communicate the derivative of the embedding function
+  if (comm_forward)
+    comm->forward_comm(this);
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+
+    xtmp = x[i][0];
+    ytmp = x[i][1];
+    ztmp = x[i][2];
+
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+    double iweight = lt.watom[type[i]-1];
+    for (jj = 0; jj < jnum; jj++) {
+      fd.set_zero();
+      j = jlist[jj];
+      j &= NEIGHMASK;
+      delij[0] = xtmp - x[j][0];
+      delij[1] = ytmp - x[j][1];
+      delij[2] = ztmp - x[j][2];
+      rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+      if (rij_sq > lt.cutoff_max_sq) continue;
+      double rij = sqrt(rij_sq);
+      double jweight = lt.watom[type[j]-1];
+
+      if (lt.S.c2b->get_rcut() > rij) {
+        //double ijw = iweight+jweight;
+        double fc2b = lt.S.c2b->calc(rij);
+        double fcp2b = lt.S.c2b->calc_prime(rij);
+        //lt.S.d2b->calc_dXijdri(rij,rij_sq,ijw*fc2b,ijw*fcp2b,fd);
+        lt.S.d2b->calc_dXijdri(rij,rij_sq,jweight*fc2b,jweight*fcp2b,fd);
+      }
+
+      int mode=0;
+      if (lt.S.cmb->get_rcut() > rij) {
+        double fcmb = lt.S.cmb->calc(rij);
+        double fcpmb = lt.S.cmb->calc_prime(rij);
+        mode = lt.S.dmb->calc_dXijdri_dXjidri(rij,rij_sq,delij,fcmb,fcpmb,lt.rhos.col(i),lt.rhos.col(j), fd, iweight,jweight);
+      }
+
+
+      if (mode==0) {
         if (lt.norm)
-            lt.model->norm.normalise(lt.aeds.col(i));
+          lt.model->norm.normalise(fd,0);
+        // mode==0 only x-component is calculated for both 2b and mb
+        double fpair = lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
 
-        double ei = lt.model->epredict(lt.aeds.col(i));
-        if (eflag_atom) eatom[i] = ei;
-        if (eflag_global) eng_vdwl += ei;
-    }
+        f[i][0] += delij[0]*fpair;
+        f[i][1] += delij[1]*fpair;
+        f[i][2] += delij[2]*fpair;
 
-    // communicate the derivative of the embedding function
-    if (comm_forward)
-        comm->forward_comm(this);
-
-    for (ii = 0; ii < inum; ii++) {
-        i = ilist[ii];
-
-        xtmp = x[i][0];
-        ytmp = x[i][1];
-        ztmp = x[i][2];
-
-        jlist = firstneigh[i];
-        jnum = numneigh[i];
-        double iweight = lt.watom[type[i]-1];
-        for (jj = 0; jj < jnum; jj++) {
-            fd.set_zero();
-            j = jlist[jj];
-            j &= NEIGHMASK;
-            delij[0] = xtmp - x[j][0];
-            delij[1] = ytmp - x[j][1];
-            delij[2] = ztmp - x[j][2];
-            rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
-            if (rij_sq > lt.cutoff_max_sq) continue;
-            double rij = sqrt(rij_sq);
-            double jweight = lt.watom[type[j]-1];
-
-            if (lt.S.c2b->get_rcut() > rij) {
-                //double ijw = iweight+jweight;
-                double fc2b = lt.S.c2b->calc(rij);
-                double fcp2b = lt.S.c2b->calc_prime(rij);
-                //lt.S.d2b->calc_dXijdri(rij,rij_sq,ijw*fc2b,ijw*fcp2b,fd);
-                lt.S.d2b->calc_dXijdri(rij,rij_sq,jweight*fc2b,jweight*fcp2b,fd);
-            }
-
-            int mode=0;
-            if (lt.S.cmb->get_rcut() > rij) {
-                double fcmb = lt.S.cmb->calc(rij);
-                double fcpmb = lt.S.cmb->calc_prime(rij);
-                mode = lt.S.dmb->calc_dXijdri_dXjidri(rij,rij_sq,delij,fcmb,fcpmb,lt.rhos.col(i),lt.rhos.col(j), fd, iweight,jweight);
-            }
-
-
-            if (mode==0) {
-                if (lt.norm)
-                    lt.model->norm.normalise(fd,0);
-                // mode==0 only x-component is calculated for both 2b and mb
-                double fpair = lt.model->fpredict(fd,lt.aeds.col(i),0)/rij;
-
-                f[i][0] += delij[0]*fpair;
-                f[i][1] += delij[1]*fpair;
-                f[i][2] += delij[2]*fpair;
-
-                if (newton_pair || j < nlocal) {
-                    f[j][0] -= delij[0]*fpair;
-                    f[j][1] -= delij[1]*fpair;
-                    f[j][2] -= delij[2]*fpair;
-                }
-                if (evflag) ev_tally(i,j,nlocal,newton_pair,0.0,0.0,fpair,delij[0],delij[1],delij[2]);
-            }
-            else {
-                // mode!=0, S.d2b calculates x-comp only, S.dmb calcs all 3-directions
-
-                // copy 2b descriptors first and
-                // scale all 2b components by delij/rij
-                // this is inefficient but will do for now... TODO
-                for(size_t s=lt.bias; s<lt.S.d2b->size()+lt.bias; ++s) {
-                    fd(s,0) /= rij;
-                    fd(s,1) = fd(s,0);
-                    fd(s,2) = fd(s,0);
-                    fd(s,0) *= delij[0];
-                    fd(s,1) *= delij[1];
-                    fd(s,2) *= delij[2];
-                }
-                if (lt.norm)
-                    lt.model->norm.normalise(fd);
-
-                // for mode!=0 we don't need to scale mb part by delij/rij
-                // as S.dmb calculator does it.
-                Vec3d f_eam = lt.model->fpredict(fd,lt.aeds.col(i));
-
-                f[i][0] += f_eam(0);
-                f[i][1] += f_eam(1);
-                f[i][2] += f_eam(2);
-
-                if (newton_pair || j < nlocal) {
-                    f[j][0] -= f_eam(0);
-                    f[j][1] -= f_eam(1);
-                    f[j][2] -= f_eam(2);
-                }
-
-                if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
-            }
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= delij[0]*fpair;
+          f[j][1] -= delij[1]*fpair;
+          f[j][2] -= delij[2]*fpair;
         }
-    }
+        if (evflag) ev_tally(i,j,nlocal,newton_pair,0.0,0.0,fpair,delij[0],delij[1],delij[2]);
+      }
+      else {
+        // mode!=0, S.d2b calculates x-comp only, S.dmb calcs all 3-directions
 
-    if (vflag_fdotr)  virial_fdotr_compute();
+        // copy 2b descriptors first and
+        // scale all 2b components by delij/rij
+        // this is inefficient but will do for now... TODO
+        for(size_t s=lt.bias; s<lt.S.d2b->size()+lt.bias; ++s) {
+          fd(s,0) /= rij;
+          fd(s,1) = fd(s,0);
+          fd(s,2) = fd(s,0);
+          fd(s,0) *= delij[0];
+          fd(s,1) *= delij[1];
+          fd(s,2) *= delij[2];
+        }
+        if (lt.norm)
+          lt.model->norm.normalise(fd);
+
+        // for mode!=0 we don't need to scale mb part by delij/rij
+        // as S.dmb calculator does it.
+        Vec3d f_eam = lt.model->fpredict(fd,lt.aeds.col(i));
+
+        f[i][0] += f_eam(0);
+        f[i][1] += f_eam(1);
+        f[i][2] += f_eam(2);
+
+        if (newton_pair || j < nlocal) {
+          f[j][0] -= f_eam(0);
+          f[j][1] -= f_eam(1);
+          f[j][2] -= f_eam(2);
+        }
+
+        if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
+      }
+    }
+  }
+
+  if (vflag_fdotr)  virial_fdotr_compute();
 
 }
 void PairTadah::compute_2b_mb_full(int eflag, int vflag)
@@ -896,15 +881,15 @@ void PairTadah::compute(int eflag, int vflag)
   // REQUIRED
 {
 
-    if (lt.dimer) {
-      compute_dimers(eflag, vflag);
-    } else if (lt.linear && lt.initmb) {
-      compute_2b_mb_half(eflag, vflag);
-    } else if (lt.linear /*&& !lt.initmb*/) {
-      compute_2b(eflag, vflag);
-    } else {
-      compute_2b_mb_full(eflag, vflag);
-    }
+  if (lt.dimer) {
+    compute_dimers(eflag, vflag);
+  } else if (lt.linear && lt.initmb) {
+    compute_2b_mb_half(eflag, vflag);
+  } else if (lt.linear /*&& !lt.initmb*/) {
+    compute_2b(eflag, vflag);
+  } else {
+    compute_2b_mb_full(eflag, vflag);
+  }
 }
 
 // allocate arrays
@@ -925,6 +910,18 @@ void PairTadah::settings(int narg, char **arg)
 {
   // pair_style tadah
   if (narg != 0) utils::missing_cmd_args(FLERR, "pair_style tadah", error);
+}
+
+// REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
+void PairTadah::coeff(int narg, char **arg)
+{
+  if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
+    error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
+
+  if (!allocated) allocate();
+
+  // e.g. pair_coeff * * pot.tadah Ta Nb NULL
+  map_element2type(narg - 3, arg + 3, true);
 
   lt=TADAH::LammpsTadah(narg,arg);
 
@@ -977,70 +974,59 @@ void PairTadah::settings(int narg, char **arg)
   }
 }
 
-// REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
-void PairTadah::coeff(int narg, char **arg)
-{
-
-  if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
-    error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
-
-  if (!allocated) allocate();
-
-  // e.g. pair_coeff * * pot.tadah Ta Nb NULL
-  map_element2type(narg - 3, arg + 3, true);
-
-}
-
 void PairTadah::init_style()
   // optional: style initialization: request neighbor list(s), error checks
 {
-    if (atom->tag_enable == 0)
-        error->all(FLERR,"Pair style tadah requires atom IDs");
+  if (atom->tag_enable == 0)
+    error->all(FLERR,"Pair style tadah requires atom IDs");
 
-    neighbor->request(this,instance_me);
+  neighbor->request(this,instance_me);
 
-    if (lt.dimer) {
-      neighbor->add_request(this, NeighConst::REQ_FULL);
-      if (force->newton_pair)
-        error->all(FLERR,"Pair style tadah requires newton pair off for this potential.");
-    } else if (lt.linear) {
-      neighbor->add_request(this);
-    } else {
-      if (force->newton_pair == 0)
-        error->all(FLERR,"Pair style tadah requires newton pair on for this potential.");
-      neighbor->add_request(this, NeighConst::REQ_FULL);
-    }
+  if (lt.dimer) {
+    neighbor->add_request(this, NeighConst::REQ_FULL);
+    if (force->newton_pair)
+      error->all(FLERR,"Pair style tadah requires newton pair off for this potential.");
+  } else if (lt.linear) {
+    neighbor->add_request(this);
+  } else {
+    if (force->newton_pair == 0)
+      error->all(FLERR,"Pair style tadah requires newton pair on for this potential.");
+    neighbor->add_request(this, NeighConst::REQ_FULL);
+  }
+}
+double PairTadah::init_one(int i, int j) {
+  return lt.cutoff_max;
 }
 /* ---------------------------------------------------------------------- */
 int PairTadah::pack_reverse_comm(int n, int first, double *buf)
 {
-    if (lt.linear)
-        return lt.pack_reverse_linear(n,first,buf);
-    else
-        return lt.pack_reverse_nonlinear(n,first,buf);
+  if (lt.linear)
+    return lt.pack_reverse_linear(n,first,buf);
+  else
+    return lt.pack_reverse_nonlinear(n,first,buf);
 }
 /* ---------------------------------------------------------------------- */
 void PairTadah::unpack_reverse_comm(int n, int *list, double *buf)
 {
-    if (lt.linear)
-        lt.unpack_reverse_linear(n,list,buf);
-    else
-        lt.unpack_reverse_nonlinear(n,list,buf);
+  if (lt.linear)
+    lt.unpack_reverse_linear(n,list,buf);
+  else
+    lt.unpack_reverse_nonlinear(n,list,buf);
 }
 /* ---------------------------------------------------------------------- */
 int PairTadah::pack_forward_comm(int n, int *list, double *buf,
-        int /*pbc_flag*/, int * /*pbc*/)
+    int /*pbc_flag*/, int * /*pbc*/)
 {
-    if (lt.linear)
-        return lt.pack_forward_linear(n,list,buf);
-    else
-        return lt.pack_forward_nonlinear(n,list,buf);
+  if (lt.linear)
+    return lt.pack_forward_linear(n,list,buf);
+  else
+    return lt.pack_forward_nonlinear(n,list,buf);
 }
 /* ---------------------------------------------------------------------- */
 void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 {
-    if (lt.linear)
-        lt.unpack_forward_linear(n,first,buf);
-    else
-        lt.unpack_forward_nonlinear(n,first,buf);
+  if (lt.linear)
+    lt.unpack_forward_linear(n,first,buf);
+  else
+    lt.unpack_forward_nonlinear(n,first,buf);
 }
