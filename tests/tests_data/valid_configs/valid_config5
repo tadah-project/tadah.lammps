@@ -2,7 +2,6 @@ ALPHA      1.0
 BETA      1.0
 BIAS      true
 CGRID2B     -1     4     1.0     5.3
-CHECKPRESS      false
 DIMER     false     0     false
 EWEIGHT      1.0
 FWEIGHT      1.0
