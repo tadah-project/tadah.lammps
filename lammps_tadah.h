@@ -24,22 +24,24 @@ namespace TADAH {
       Config c;
       bool norm;
       size_t bias=0;
+      size_t dsize=0;
       double cutoff_max_sq;
       double cutoff_max;
-      rhos_type rhos;
-      aeds_type2 aeds;
       bool linear;
       bool dimer;
-      bool dimer_bond_bool;
       double dimer_r;
+      bool dimer_bond_bool;
 
       bool init2b;
       bool initmb;
+      std::vector<double> watom;
 
       DC_Selector S;
-      std::vector<double> weights;
-      M_MD_Base *model=nullptr;
       Function_Base *fb=nullptr;
+      M_MD_Base *model=nullptr;
+
+      aeds_type2 aeds;
+      rhos_type rhos;
 
       // Const Assignment operator
       LammpsTadah& operator=(const LammpsTadah& lt);
