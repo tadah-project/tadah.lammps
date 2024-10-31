@@ -81,6 +81,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
   watom.resize(narg-3); // this includes NULL values
+                        // which want be set
 
   for (int i=3; i<narg; ++i) {
     std::string symbol=arg[i];
