@@ -1,4 +1,4 @@
-# Ta-dah.LAMMPS
+# Tadah.LAMMPS
 
 ## Manual installation instructions:
 
