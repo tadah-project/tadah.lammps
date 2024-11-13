@@ -37,7 +37,7 @@ cmd += " && make -j %d" % n_cpus
 
 try:
   txt = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-  print(txt.decode('UTF-8'))
+  #print(txt.decode('UTF-8'))
 except subprocess.CalledProcessError as e:
   print("Build failed with:\n %s" % e.output.decode('UTF-8'))
   sys.exit(1)
