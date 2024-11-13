@@ -39,7 +39,6 @@ if (test $1 = 1) then
   if (test -e ../Makefile.package) then
     sed -i -e 's/[^ \t]*tadah[^ \t]* //' ../Makefile.package
     sed -i -e 's|^PKG_LIB =[ \t]*|&$(tadah_lnk) |' ../Makefile.package
-    sed -i -e 's|^PKG_INC =[ \t]*|&$(tadah_inc) |' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then

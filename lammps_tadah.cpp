@@ -55,7 +55,7 @@ LammpsTadah &LammpsTadah::operator=(LammpsTadah& lt)
 LammpsTadah::LammpsTadah():
   model(nullptr),
   fb(nullptr)
-{};
+{}
 
 LammpsTadah::LammpsTadah(int narg, char **arg):
   c(arg[2]),
