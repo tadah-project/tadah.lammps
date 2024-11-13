@@ -1,11 +1,8 @@
 lib=tadah.lammps
 dir=../../lib/$(lib)/build
-absdir=$(shell readlink -e $(dir))
 
-toml=$(dir)/_deps/tadah.core-src/external/toml11
-core=$(dir)/_deps/tadah.core-src/include
-models=$(dir)/_deps/tadah.models-src/include
-md=$(dir)/_deps/tadah.md-src/include
+core=$(dir)/_deps/tadah.core-build
+models=$(dir)/_deps/tadah.models-build
+md=$(dir)/_deps/tadah.md-build
 
-tadah_inc=-I$(core) -I$(models) -I$(md) -I$(toml)
-tadah_lnk=-L$(dir) -l$(lib) -L$(dir)/_deps/tadah.core-build -ltadah.core -lconfig-resources  -L$(dir)/_deps/tadah.models-build -ltadah.models -L$(dir)/_deps/tadah.md-build -ltadah.md
+tadah_lnk=-L$(dir) -l$(lib) -L$(core) -ltadah.core -lconfig-resources -L$(models) -ltadah.models -L$(md) -ltadah.md
