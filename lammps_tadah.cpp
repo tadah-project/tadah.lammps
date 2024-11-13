@@ -53,8 +53,8 @@ LammpsTadah &LammpsTadah::operator=(LammpsTadah& lt)
   return *this;
 }
 LammpsTadah::LammpsTadah():
-  model(nullptr),
-  fb(nullptr)
+  fb(nullptr),
+  model(nullptr)
 {}
 
 LammpsTadah::LammpsTadah(int narg, char **arg):
@@ -70,8 +70,8 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   init2b(c.get<bool>("INIT2B")),
   initmb(c.get<bool>("INITMB")),
   S(c),
-  model(nullptr),
-  fb(nullptr)
+  fb(nullptr),
+  model(nullptr)
 {
   // check does pot file exists
   std::ifstream f(arg[2]);
