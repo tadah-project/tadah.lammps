@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12)
 
 project(tadah.LAMMPS)
-set(TADAH "Ta-dah!")
+set(TADAH "Tadah!")
 
 # Here are the options... set them with -D,
 # for example:
