@@ -1,7 +1,6 @@
 # Install/unInstall package files in LAMMPS
 # mode = 0/1/2 for uninstall/install/update
 
-
 mode=$1
 
 # enforce using portable C locale
@@ -38,12 +37,17 @@ done
 if (test $1 = 1) then
 
   if (test -e ../Makefile.package) then
-      sed -i -e 's|^PKG_LIB =[ \t]*|&$(tadah_lnk) |' ../Makefile.package
-      sed -i -e 's|^PKG_INC =[ \t]*|&$(tadah_inc) |' ../Makefile.package
+    sed -i -e 's/[^ \t]*tadah[^ \t]* //' ../Makefile.package
+    sed -i -e 's|^PKG_LIB =[ \t]*|&$(tadah_lnk) |' ../Makefile.package
+    sed -i -e 's|^PKG_INC =[ \t]*|&$(tadah_inc) |' ../Makefile.package
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '4i\include ../ML-TADAH/Makefile.package.settings\' ../Makefile.package.settings
+    sed -i -e '/^[ \t]*include.*ML-TADAH.*$/d' ../Makefile.package.settings
+    # multiline form needed for BSD sed on Macs
+    sed -i -e '4 i \
+include ..\/ML-TADAH\/Makefile.package.settings
+          ' ../Makefile.package.settings
   fi
 
 elif (test $1 = 0) then
@@ -53,7 +57,7 @@ elif (test $1 = 0) then
   fi
 
   if (test -e ../Makefile.package.settings) then
-    sed -i -e '/ML-TADAH/d' ../Makefile.package.settings
+    sed -i -e '/^[ \t]*include.*ML-TADAH.*$/d' ../Makefile.package.settings
   fi
 
 fi

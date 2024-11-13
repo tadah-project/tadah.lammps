@@ -3,13 +3,8 @@ cmake_minimum_required(VERSION 3.12)
 project(tadah.LAMMPS)
 set(TADAH "Tadah!")
 
-# Here are the options... set them with -D,
-# for example:
-# cmake .. -DTADAH_BUILD_TESTS=ON
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
 option(TADAH_ENABLE_FAST_MATH "Enable fast math optimizations" OFF)
-
-option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 # Guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
@@ -20,31 +15,7 @@ set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-if(BUILD_SHARED_LIBS)
-  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-endif()
-
-if (BUILD_SHARED_LIBS)
-    # Always full RPATH
-    # use, i.e. don't skip the full RPATH for the build tree
-    set(CMAKE_SKIP_BUILD_RPATH FALSE)
-
-    # when building, don't use the install RPATH already
-    # (but later on when installing)
-    set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
-
-    set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-
-    # add the automatically determined parts of the RPATH
-    # which point to directories outside the build tree to the install RPATH
-    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-
-    # the RPATH to be used when installing, but only if it's not a system directory
-    list(FIND CMAKE_PLATFORM_IMPLICIT_LINK_DIRECTORIES "${CMAKE_INSTALL_PREFIX}/lib" isSystemDir)
-    if("${isSystemDir}" STREQUAL "-1")
-        set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
-    endif("${isSystemDir}" STREQUAL "-1")
-endif()
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(CMAKE_CXX_FLAGS_DEBUG
     "-g -O2 -fsanitize=address -Wall -Wpedantic -pedantic-errors -Wextra"
@@ -66,7 +37,7 @@ set(CMAKE_CXX_FLAGS_PROFILE
 
 # Set default build type
 if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+    set(CMAKE_BUILD_TYPE Release)
 endif()
 
 # Check is build supported
@@ -90,20 +61,18 @@ set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
     "Choose the type of build, options are: None Debug Release Profile."
     FORCE)
 
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-include(FetchContent)
-
+# Required for GitLab CI/CD
 if(DEFINED ENV{CI_COMMIT_REF_NAME})
     set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
 else()
     execute_process(
-    COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_BRANCH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+        COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        OUTPUT_VARIABLE GIT_BRANCH
+        OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 
+include(FetchContent)
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
@@ -115,13 +84,8 @@ add_library(tadah.lammps STATIC lammps_tadah.cpp)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 target_link_libraries(tadah.lammps PUBLIC tadah.core)
 
-#target_include_directories(tadah.models PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 find_package(LAPACK)
 target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
-#target_include_directories(tadah.lammps PUBLIC ${Tadah.MD_SOURCE_DIR}/include)
-#target_include_directories(tadah.lammps PUBLIC ${Tadah.MODELS_SOURCE_DIR}/include)
-#target_include_directories(tadah.lammps PUBLIC ${Tadah.CORE_SOURCE_DIR}/include)
-#target_include_directories(tadah.lammps PUBLIC ${Tadah.CORE_SOURCE_DIR}/external/toml11)
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)
@@ -149,8 +113,6 @@ else()
     endif()
 endif()
 message(STATUS "${TADAH}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
-#########################################################################
-
 #########################################################################
 
 if(TADAH_BUILD_TESTS)
