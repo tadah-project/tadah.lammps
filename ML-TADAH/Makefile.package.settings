@@ -11,5 +11,6 @@ toml_src=$(dir)/_deps/tadah.core-src/external/toml11
 core_src=$(dir)/_deps/tadah.core-src/include
 models_src=$(dir)/_deps/tadah.models-src/include
 md_src=$(dir)/_deps/tadah.md-src/include
+cmrc_src=$(dir)/_cmrc/include
 
-tadah_inc=-I$(core_src) -I$(models_src) -I$(md_src) -I$(toml_src)
+tadah_inc=-I$(core_src) -I$(models_src) -I$(md_src) -I$(toml_src) -I$(cmrc_src)
