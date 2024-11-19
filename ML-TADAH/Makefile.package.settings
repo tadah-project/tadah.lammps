@@ -6,3 +6,10 @@ models=$(dir)/_deps/tadah.models-build
 md=$(dir)/_deps/tadah.md-build
 
 tadah_lnk=-L$(dir) -l$(lib) -L$(core) -ltadah.core -lconfig-resources -L$(models) -ltadah.models -L$(md) -ltadah.md
+
+toml_src=$(dir)/_deps/tadah.core-src/external/toml11
+core_src=$(dir)/_deps/tadah.core-src/include
+models_src=$(dir)/_deps/tadah.models-src/include
+md_src=$(dir)/_deps/tadah.md-src/include
+
+tadah_inc=-I$(core_src) -I$(models_src) -I$(md_src) -I$(toml_src)
