@@ -41,6 +41,28 @@ set(CMAKE_CXX_FLAGS_DEVELOP
     "Release build."
     FORCE)
 
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
+if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
+  function(find_directory_case_insensitive target_name search_dir result_var)
+    execute_process(
+        COMMAND find "${search_dir}" -maxdepth 1 -type d -iname "${target_name}"
+        OUTPUT_VARIABLE found_dir
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(found_dir)
+      set(${result_var} "${found_dir}" PARENT_SCOPE)
+      message("${TADAH} Develop build: Found directory: ${found_dir}")
+    else()
+      set(${result_var} "" PARENT_SCOPE)
+      message("${TADAH} Develop build: Directory not found.")
+    endif()
+  endfunction()
+
+  find_directory_case_insensitive("md" "$ENV{TADAH_PATH}" DEVELOP_MD_DIR)
+  set(FETCHCONTENT_SOURCE_DIR_TADAH.MD "${DEVELOP_MD_DIR}")
+endif()
+
 # Set default build type
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -49,43 +71,49 @@ endif()
 # Check is build supported
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
 if (CMAKE_BUILD_TYPE STREQUAL "DEBUG" 
-        OR
-        CMAKE_BUILD_TYPE STREQUAL "RELEASE"
-        OR
-        CMAKE_BUILD_TYPE STREQUAL "PROFILE"
-)
+    OR
+    CMAKE_BUILD_TYPE STREQUAL "RELEASE"
+    OR
+    CMAKE_BUILD_TYPE STREQUAL "PROFILE"
+    OR
+    CMAKE_BUILD_TYPE STREQUAL "DEVELOP"
+    )
   message(STATUS "${TADAH} Build type:  ${CMAKE_BUILD_TYPE}.")
 else()
   message(FATAL_ERROR "
-    Selected build type is not supported: ${CMAKE_BUILD_TYPE}.
-    Supported build types: Release, Debug, Profile"
+  Selected build type is not supported: ${CMAKE_BUILD_TYPE}.
+  Supported build types: Release, Debug, Profile"
   )
 endif()
 
 # Update the documentation string of CMAKE_BUILD_TYPE for GUIs
 set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
-    "Choose the type of build, options are: None Debug Release Profile."
+    "Choose the type of build, options are: None Debug Release Profile Develop."
     FORCE)
 
-# Required for GitLab CI/CD
+
+include(FetchContent)
+message(STATUS "${TADAH}.LAMMPS Obtaining branch name...")
 if(DEFINED ENV{CI_COMMIT_REF_NAME})
-  set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
+    set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
 else()
-  execute_process(
-        COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
-        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-        OUTPUT_VARIABLE GIT_BRANCH
-        OUTPUT_STRIP_TRAILING_WHITESPACE)
+    execute_process(
+    #COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
+    COMMAND bash -c "git status | grep origin | sed -e 's/.*origin\\///' -e 's/[^a-zA-Z].*//'"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_BRANCH
+    OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 message(STATUS "${TADAH}.LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}.")
 
-include(FetchContent)
+message(STATUS "${TADAH}.LAMMPS Fetching MD.")
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
     GIT_TAG origin/${GIT_BRANCH}
 )
 FetchContent_MakeAvailable(Tadah.MD)
+message(STATUS "${TADAH}.LAMMPS Fetching done.")
 
 add_library(tadah.lammps STATIC lammps_tadah.cpp)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
