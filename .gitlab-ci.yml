@@ -1,61 +1,43 @@
-variables:
-  GIT_CLONE_PATH: $CI_BUILDS_DIR/$CI_COMMIT_SHA/$CI_PROJECT_NAME
-  
 stages:
-  - build.debug
-  - run.unit.tests
-  - build.release
-  - run.functional.tests
-  - trigger
+  - build_debug
+  - run_unit_tests
+  - build_release
 
-before_script: 
+cache:
+    paths:
+    - ${BUILD_DIR}
+
+before_script:
   - mkdir -p ${DEBUG_DIR}
-  - mkdir -p ${RELEASE_DIR}
-  - export PATH=$PATH:${INSTALL_PATH}/bin
-  - export CPATH=$CPATH:${INSTALL_PATH}/include
-  - export LIBRARY_PATH=$LIBRARY_PATH:${INSTALL_PATH}/lib
-  - export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${INSTALL_PATH}/lib
+  - mkdir -p ${RELEASE_SHARED_DIR}
+  - mkdir -p ${RELEASE_STATIC_DIR}
   - export OMP_NUM_THREADS=${CPU_SIM}
 
-build-debug-tests:
-  stage: build.debug
+build_debug:
+  stage: build_debug
   script:
     - cd ${DEBUG_DIR}
-    - cmake .. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
+    - cmake ../.. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
     - make -j ${CPU_BUILD}
 
-run-tests-1:
-  variables: 
-    GIT_CLEAN_FLAGS: -ffdx -e ${DEBUG_DIR} -e CORE -e MODELS -e MD
-
-  stage: run.unit.tests
-  needs: [build-debug-tests]
+run_unit_tests:
+  stage: run_unit_tests
   script:
     - cd ${DEBUG_DIR}
     - make test
     - cd ..; gcovr -e '.*tests.*|.*lib.*|.*ML-TADAH.*|build' -r .
   coverage: /^TOTAL.*\s+(\d+\%)$/
 
-build-release-shared:
-  stage: build.release
-  needs: [run-tests-1]
+build_release_shared:
+  stage: build_release
   script:
-    - cd ${RELEASE_DIR}
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
+    - cd ${RELEASE_SHARED_DIR}
+    - cmake ../.. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
     - make -j ${CPU_BUILD}
 
-build-release-static:
-  stage: build.release
-  needs: [build-release-shared]
+build_release_static:
+  stage: build_release
   script:
-    - cd ${RELEASE_DIR}
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
+    - cd ${RELEASE_STATIC_DIR}
+    - cmake ../.. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
     - make -j ${CPU_BUILD}
-
-build-ml-tadah:
-  #image: tadahmlip/alpine_lammps
-  stage: build.release
-  needs: [build-release-static]
-  script:
-    - pwd
-    - ls -l
