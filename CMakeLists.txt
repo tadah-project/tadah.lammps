@@ -93,27 +93,25 @@ set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
 
 
 include(FetchContent)
-message(STATUS "${TADAH}.LAMMPS Obtaining branch name...")
 if(DEFINED ENV{CI_COMMIT_REF_NAME})
     set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
+elseif(DEFINED ENV{READTHEDOCS})
+    set(GIT_BRANCH "$ENV{READTHEDOCS_PROJECT}")
 else()
     execute_process(
-    #COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
-    COMMAND bash -c "git status | grep origin | sed -e s/.*origin\\/// -e s/[^a-zA-Z].*//"
+    COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_BRANCH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
 message(STATUS "${TADAH}.LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}.")
 
-message(STATUS "${TADAH}.LAMMPS Fetching MD.")
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
     GIT_TAG origin/${GIT_BRANCH}
 )
 FetchContent_MakeAvailable(Tadah.MD)
-message(STATUS "${TADAH}.LAMMPS Fetching done.")
 
 add_library(tadah.lammps STATIC lammps_tadah.cpp)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
