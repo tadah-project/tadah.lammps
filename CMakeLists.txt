@@ -77,7 +77,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "DEBUG"
     CMAKE_BUILD_TYPE STREQUAL "PROFILE"
     OR
     CMAKE_BUILD_TYPE STREQUAL "DEVELOP"
-    )
+)
   message(STATUS "${TADAH} Build type:  ${CMAKE_BUILD_TYPE}.")
 else()
   message(FATAL_ERROR "
@@ -94,11 +94,11 @@ set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
 
 include(FetchContent)
 if(DEFINED ENV{CI_COMMIT_REF_NAME})
-    set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
+  set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
 elseif(DEFINED ENV{READTHEDOCS})
-    set(GIT_BRANCH "$ENV{READTHEDOCS_PROJECT}")
+  set(GIT_BRANCH "$ENV{READTHEDOCS_VERSION}")
 else()
-    execute_process(
+  execute_process(
     COMMAND git rev-parse --symbolic-full-name --abbrev-ref HEAD
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_BRANCH
