@@ -919,6 +919,7 @@ void PairTadah::coeff(int narg, char **arg)
   lt=TADAH::LammpsTadah(narg,arg);
 
   manybody_flag = lt.initmb || !lt.linear ? 1 : 0;
+  single_enable = lt.linear && !lt.initmb ? 1 : 0;
 
   if (lt.dimer) {
     manybody_flag=0;
@@ -1022,4 +1023,21 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
     lt.unpack_forward_linear(n,first,buf);
   else
     lt.unpack_forward_nonlinear(n,first,buf);
+}
+double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
+                             double /*factor_coul*/, double /*factor_lj*/, double &fforce)
+{
+  StDescriptors::aed_type aed(lt.c.get<size_t>("DSIZE"));
+  StDescriptors::fd_type fd(lt.c.get<size_t>("DSIZE"),3);
+  aed.setZero();
+  // if (lt.bias)
+  //   aed(0) = 1.0;
+  double wj = lt.watom[jtype-1];
+  double rij = sqrt(rsq);
+  double fc_ij = wj*lt.S.c2b->calc(rij);
+  double fcp_ij = wj*lt.S.c2b->calc_prime(rij);
+  lt.S.d2b->calc_all(rij,rij_sq,fc_ij,fcp_ij,aed, fd);
+  fforce = lt.model->fpredict(fd,aed,0)/rij;
+  double ei = lt.model->epredict(aed);
+  return ei;
 }
