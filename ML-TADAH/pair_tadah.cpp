@@ -1027,9 +1027,9 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                              double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  StDescriptors::aed_type aed(lt.c.get<size_t>("DSIZE"));
-  StDescriptors::fd_type fd(lt.c.get<size_t>("DSIZE"),3);
-  aed.setZero();
+  aed_type2 aed(lt.dsize);
+  fd_type fd(lt.dsize);
+  aed.set_zero();
   // if (lt.bias)
   //   aed(0) = 1.0;
   double wj = lt.watom[jtype-1];
