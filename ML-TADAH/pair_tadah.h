@@ -42,6 +42,9 @@ namespace LAMMPS_NS {
       int nmax=0;
       void allocate();
 
+      double single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
+                double /*factor_coul*/, double /*factor_lj*/, double &fforce);
+
     public:
       PairTadah(class LAMMPS *);
       ~PairTadah() override;
