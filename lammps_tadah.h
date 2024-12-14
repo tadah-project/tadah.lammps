@@ -44,7 +44,7 @@ namespace TADAH {
       rhos_type rhos;
 
       // Const Assignment operator
-      LammpsTadah& operator=(const LammpsTadah& lt);
+      //LammpsTadah& operator=(const LammpsTadah& lt);
 
       // Assignment operator
       LammpsTadah& operator=(LammpsTadah& lt);

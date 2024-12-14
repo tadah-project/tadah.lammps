@@ -2,34 +2,34 @@
 
 using namespace TADAH;
 
-// Const Assignment operator
-LammpsTadah &LammpsTadah::operator=(const LammpsTadah& lt)
-{
-  c=lt.c;
-  norm=lt.norm;
-  bias=lt.bias;
-  dsize=lt.dsize;
-  cutoff_max_sq=lt.cutoff_max_sq;
-  cutoff_max=lt.cutoff_max;
-  linear=lt.linear;
-  dimer=lt.dimer;
-  dimer_r=lt.dimer_r;
-  dimer_bond_bool=lt.dimer_bond_bool;
-  init2b=lt.init2b;
-  initmb=lt.initmb;
-  watom=lt.watom;
-  S=lt.S;
-  // We need deep copy for fb and model.
-  // For now we just init them the same way
-  // as constructor does
-  fb = CONFIG::factory<Function_Base,Config&>(
-      c.get<std::string>("MODEL",1),c);
-  model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
-      c.get<std::string>("MODEL",0),*fb,c);
-  aeds=lt.aeds;
-  rhos=lt.rhos;
-  return *this;
-}
+// // Const Assignment operator
+// LammpsTadah &LammpsTadah::operator=(const LammpsTadah& lt)
+// {
+//   c=lt.c;
+//   norm=lt.norm;
+//   bias=lt.bias;
+//   dsize=lt.dsize;
+//   cutoff_max_sq=lt.cutoff_max_sq;
+//   cutoff_max=lt.cutoff_max;
+//   linear=lt.linear;
+//   dimer=lt.dimer;
+//   dimer_r=lt.dimer_r;
+//   dimer_bond_bool=lt.dimer_bond_bool;
+//   init2b=lt.init2b;
+//   initmb=lt.initmb;
+//   watom=lt.watom;
+//   S=lt.S;
+//   // We need deep copy for fb and model.
+//   // For now we just init them the same way
+//   // as constructor does
+//   fb = CONFIG::factory<Function_Base,Config&>(
+//       c.get<std::string>("MODEL",1),c);
+//   model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
+//       c.get<std::string>("MODEL",0),*fb,c);
+//   aeds=lt.aeds;
+//   rhos=lt.rhos;
+//   return *this;
+// }
 LammpsTadah &LammpsTadah::operator=(LammpsTadah& lt)
 {
   std::swap(c,lt.c);
@@ -111,7 +111,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   if (S.d2b->size()) {
     c.add("SIZE2B",S.d2b->size());
     dsize+=S.d2b->size();
-    S.d2b->fidx=bias;
+    S.d2b->set_fidx(bias);
   }
   else {
     c.add("SIZE2B",0);
@@ -120,7 +120,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   if (S.dmb->size()) {
     c.add("SIZEMB",S.dmb->size());
     dsize+=S.dmb->size();
-    S.dmb->fidx=bias+S.d2b->size();
+    S.dmb->set_fidx(bias+S.d2b->size());
   }
   else {
     c.add("SIZEMB",0);
