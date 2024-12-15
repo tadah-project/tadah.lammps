@@ -112,6 +112,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Tadah.MD)
 
 add_library(tadah.lammps STATIC lammps_tadah.cpp)
+target_include_directories(tadah.lammps PRIVATE .)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 target_link_libraries(tadah.lammps PUBLIC tadah.core)
 

@@ -14,59 +14,50 @@
 #include <iostream>
 #include <string>
 
-/**
- * LAMMPS INTERFACE
- */
 namespace TADAH {
-  class LammpsTadah {
+class LammpsTadah {
 
-    public:
-      Config c;
-      bool norm;
-      size_t bias=0;
-      size_t dsize=0;
-      double cutoff_max_sq;
-      double cutoff_max;
-      bool linear;
-      bool dimer;
-      double dimer_r;
-      bool dimer_bond_bool;
+public:
+  Config c;
+  bool norm;
+  size_t bias=0;
+  size_t dsize=0; // descriptor dim inc bias
+  size_t rsize=0; // rho dim inc derivative
+  double cutoff_max_sq;
+  double cutoff_max;
+  bool linear;
+  bool dimer;
+  double dimer_r;
+  bool dimer_bond_bool;
 
-      bool init2b;
-      bool initmb;
-      std::vector<double> watom;
+  bool init2b;
+  bool initmb;
+  std::vector<int> Z;
 
-      DC_Selector S;
-      Function_Base *fb=nullptr;
-      M_MD_Base *model=nullptr;
+  DC_Selector S;
+  Function_Base *fb=nullptr;
+  M_MD_Base *model=nullptr;
 
-      aeds_type2 aeds;
-      rhos_type rhos;
+  aeds_type2 aeds;
+  rhos_type rhos;
 
-      // Const Assignment operator
-      //LammpsTadah& operator=(const LammpsTadah& lt);
+  LammpsTadah(int narg, char **arg);
+  ~LammpsTadah();
+  LammpsTadah(const LammpsTadah&) = delete;
+  LammpsTadah& operator=(const LammpsTadah&) = delete;
 
-      // Assignment operator
-      LammpsTadah& operator=(LammpsTadah& lt);
+  int pack_reverse_linear(int n, int first, double *buf);
+  void unpack_reverse_linear(int n, int *list, double *buf);
+  // Pack the derivative of the embedding func
+  int pack_forward_linear(int n, int *list, double *buf);
+  // Unpack the derivative of the embedding func
+  void unpack_forward_linear(int n, int first, double *buf);
+  // NONLINEAR
+  int pack_reverse_nonlinear(int n, int first, double *buf);
+  void unpack_reverse_nonlinear(int n, int *list, double *buf);
+  int pack_forward_nonlinear(int n, int *list, double *buf);
+  void unpack_forward_nonlinear(int n, int first, double *buf);
 
-      // Constructor:
-      LammpsTadah();
-      LammpsTadah(int narg, char **arg);
-
-      ~LammpsTadah();
-
-      int pack_reverse_linear(int n, int first, double *buf);
-      void unpack_reverse_linear(int n, int *list, double *buf);
-      // Pack the derivative of the embedding func
-      int pack_forward_linear(int n, int *list, double *buf);
-      // Unpack the derivative of the embedding func
-      void unpack_forward_linear(int n, int first, double *buf);
-      // NONLINEAR
-      int pack_reverse_nonlinear(int n, int first, double *buf);
-      void unpack_reverse_nonlinear(int n, int *list, double *buf);
-      int pack_forward_nonlinear(int n, int *list, double *buf);
-      void unpack_forward_nonlinear(int n, int first, double *buf);
-
-  };
+};
 }
 #endif

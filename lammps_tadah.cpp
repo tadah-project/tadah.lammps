@@ -1,66 +1,11 @@
-#include "lammps_tadah.h"
+#include <lammps_tadah.h>
+#include <tadah/core/periodic_table.h>
 
 using namespace TADAH;
-
-// // Const Assignment operator
-// LammpsTadah &LammpsTadah::operator=(const LammpsTadah& lt)
-// {
-//   c=lt.c;
-//   norm=lt.norm;
-//   bias=lt.bias;
-//   dsize=lt.dsize;
-//   cutoff_max_sq=lt.cutoff_max_sq;
-//   cutoff_max=lt.cutoff_max;
-//   linear=lt.linear;
-//   dimer=lt.dimer;
-//   dimer_r=lt.dimer_r;
-//   dimer_bond_bool=lt.dimer_bond_bool;
-//   init2b=lt.init2b;
-//   initmb=lt.initmb;
-//   watom=lt.watom;
-//   S=lt.S;
-//   // We need deep copy for fb and model.
-//   // For now we just init them the same way
-//   // as constructor does
-//   fb = CONFIG::factory<Function_Base,Config&>(
-//       c.get<std::string>("MODEL",1),c);
-//   model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
-//       c.get<std::string>("MODEL",0),*fb,c);
-//   aeds=lt.aeds;
-//   rhos=lt.rhos;
-//   return *this;
-// }
-LammpsTadah &LammpsTadah::operator=(LammpsTadah& lt)
-{
-  std::swap(c,lt.c);
-  std::swap(norm , lt.norm);
-  std::swap(bias,lt.bias);
-  std::swap(dsize,lt.dsize);
-  std::swap(cutoff_max_sq,lt.cutoff_max_sq);
-  std::swap(cutoff_max,lt.cutoff_max);
-  std::swap(linear,lt.linear);
-  std::swap(dimer,lt.dimer);
-  std::swap(dimer_r,lt.dimer_r);
-  std::swap(dimer_bond_bool,lt.dimer_bond_bool);
-  std::swap(init2b,lt.init2b);
-  std::swap(initmb,lt.initmb);
-  std::swap(watom,lt.watom);
-  S=lt.S;
-  std::swap(fb,lt.fb);
-  std::swap(model,lt.model);
-  aeds=lt.aeds;
-  rhos=lt.rhos;
-  return *this;
-}
-LammpsTadah::LammpsTadah():
-  fb(nullptr),
-  model(nullptr)
-{}
 
 LammpsTadah::LammpsTadah(int narg, char **arg):
   c(arg[2]),
   norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
-  //bias(c.get<bool>("BIAS")),
   cutoff_max_sq(pow(c.get<double>("RCUTMAX"),2)),
   cutoff_max(c.get<double>("RCUTMAX")),
   linear(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear"),
@@ -70,37 +15,29 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   init2b(c.get<bool>("INIT2B")),
   initmb(c.get<bool>("INITMB")),
   S(c),
-  fb(nullptr),
-  model(nullptr)
+  fb(CONFIG::factory<Function_Base,Config&>(
+    c.get<std::string>("MODEL",1),c)),
+  model(CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
+    c.get<std::string>("MODEL",0),*fb,c))
 {
-  // check does pot file exists
-  std::ifstream f(arg[2]);
-  if(!f.good())
-    throw std::runtime_error("Pot file does not exists.\n");
-
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
-  watom.resize(narg-3); // this includes NULL values
+  // watom.resize(narg-3); // this includes NULL values
+  Z.resize(narg-3); // this includes NULL values
                         // which want be set
-
   for (int i=3; i<narg; ++i) {
     std::string symbol=arg[i];
     if (symbol=="NULL") continue;
     size_t j=0;
     for (j=0; j<c.size("ATOMS"); ++j) {
       if (c.get<std::string>("ATOMS", j)==symbol) {
-        watom[i-3] = c.get<double>("WATOMS",j);
+        Z[i-3] = PeriodicTable::find_by_symbol(symbol).Z;
         break;
       }
     }
     if (j==c.size("ATOMS"))
       throw std::runtime_error("Symbol not in potential file: "+symbol);
   }
-
-  fb = CONFIG::factory<Function_Base,Config&>(
-      c.get<std::string>("MODEL",1),c);
-  model = CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
-      c.get<std::string>("MODEL",0),*fb,c);
 
   // bias affects position of fidx for descriptors
   if (c.get<bool>("BIAS"))
@@ -121,6 +58,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     c.add("SIZEMB",S.dmb->size());
     dsize+=S.dmb->size();
     S.dmb->set_fidx(bias+S.d2b->size());
+    rsize = S.dmb->rhoi_size()+ S.dmb->rhoip_size();
   }
   else {
     c.add("SIZEMB",0);
