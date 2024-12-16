@@ -20,7 +20,6 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   model(CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
     c.get<std::string>("MODEL",0),*fb,c))
 {
-  PeriodicTable::initialize();
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
   // watom.resize(narg-3); // this includes NULL values

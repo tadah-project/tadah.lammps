@@ -37,6 +37,7 @@ using namespace LAMMPS_NS;
 
 PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
 {
+  PeriodicTable::initialize();
   single_enable = 1; // 1 if single() method is implemented, 0 if missing
   restartinfo = 0; // 1 if pair style writes its settings to a restart
   one_coeff = 1; // 1 if only a pair_coeff * * command is allowed
