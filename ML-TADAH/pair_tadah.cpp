@@ -272,63 +272,39 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         lt->S.d2b->calc_dXijdri(Zj,rij,rij_sq,fd);
       }
 
-      int mode=0;
       if (lt->S.dmb->get_rcut() > rij) {
-        mode = lt->S.dmb->calc_dXijdri_dXjidri(Zi,Zj,rij,rij_sq,delij,
-                                               lt->rhos.col(i),lt->rhos.col(j),fd);
+        lt->S.dmb->calc_dXijdri_dXjidri(Zi,Zj,rij,rij_sq,delij,
+                                        lt->rhos.col(i),lt->rhos.col(j),fd);
       }
 
-      if (mode==0) {
-        if (lt->norm)
-          lt->model->norm.normalise(fd,0);
-        // mode==0 only x-component is calculated for both 2b and mb
-        double fpair = lt->model->fpredict(fd,lt->aeds.col(i),0)/rij;
-
-        f[i][0] += delij[0]*fpair;
-        f[i][1] += delij[1]*fpair;
-        f[i][2] += delij[2]*fpair;
-
-        if (newton_pair || j < nlocal) {
-          f[j][0] -= delij[0]*fpair;
-          f[j][1] -= delij[1]*fpair;
-          f[j][2] -= delij[2]*fpair;
-        }
-        if (evflag) ev_tally(i,j,nlocal,newton_pair,0.0,0.0,fpair,delij[0],delij[1],delij[2]);
+      // copy 2b descriptors first and
+      // scale all 2b components by delij/rij
+      // this is inefficient but will do for now... TODO
+      for(size_t s=lt->bias; s<lt->S.d2b->size()+lt->bias; ++s) {
+        fd(s,0) /= rij;
+        fd(s,1) = fd(s,0);
+        fd(s,2) = fd(s,0);
+        fd(s,0) *= delij[0];
+        fd(s,1) *= delij[1];
+        fd(s,2) *= delij[2];
       }
-      else {
-        // mode!=0, S.d2b calculates x-comp only, S.dmb calcs all 3-directions
+      if (lt->norm)
+        lt->model->norm.normalise(fd);
 
-        // copy 2b descriptors first and
-        // scale all 2b components by delij/rij
-        // this is inefficient but will do for now... TODO
-        for(size_t s=lt->bias; s<lt->S.d2b->size()+lt->bias; ++s) {
-          fd(s,0) /= rij;
-          fd(s,1) = fd(s,0);
-          fd(s,2) = fd(s,0);
-          fd(s,0) *= delij[0];
-          fd(s,1) *= delij[1];
-          fd(s,2) *= delij[2];
-        }
-        if (lt->norm)
-          lt->model->norm.normalise(fd);
+      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
-        // for mode!=0 we don't need to scale mb part by delij/rij
-        // as S.dmb calculator does it.
-        Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      f[i][0] += f_eam(0);
+      f[i][1] += f_eam(1);
+      f[i][2] += f_eam(2);
 
-        f[i][0] += f_eam(0);
-        f[i][1] += f_eam(1);
-        f[i][2] += f_eam(2);
-
-        if (newton_pair || j < nlocal) {
-          f[j][0] -= f_eam(0);
-          f[j][1] -= f_eam(1);
-          f[j][2] -= f_eam(2);
-        }
-
-        if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
-                                 0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
+      if (newton_pair || j < nlocal) {
+        f[j][0] -= f_eam(0);
+        f[j][1] -= f_eam(1);
+        f[j][2] -= f_eam(2);
       }
+
+      if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
+                               0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
     }
   }
 
@@ -456,60 +432,36 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
         lt->S.d2b->calc_dXijdri(Zj,rij,rij_sq,fd,0.5);
       }
 
-      int mode=0;
       if (lt->S.dmb->get_rcut() > rij) {
-        mode = lt->S.dmb->calc_dXijdri(Zj,rij,rij_sq,delij,lt->rhos.col(i),fd);
+        lt->S.dmb->calc_dXijdri(Zj,rij,rij_sq,delij,lt->rhos.col(i),fd);
       }
 
-      if (mode==0) {
-        if (lt->norm)
-          lt->model->norm.normalise(fd,0);
-        // mode==0 only x-component is calculated for both 2b and mb
-        double fpair = lt->model->fpredict(fd,lt->aeds.col(i),0)/rij;
-
-        f[i][0] += delij[0]*fpair;
-        f[i][1] += delij[1]*fpair;
-        f[i][2] += delij[2]*fpair;
-
-        f[j][0] -= delij[0]*fpair;
-        f[j][1] -= delij[1]*fpair;
-        f[j][2] -= delij[2]*fpair;
-
-        if (evflag) ev_tally(i,j,nlocal,newton_pair,
-                             0.0,0.0,fpair,delij[0],delij[1],delij[2]);
+      // copy 2b descriptors first and
+      // scale all 2b components by delij/rij
+      // this is inefficient but will do for now... TODO
+      for(size_t s=lt->bias; s<lt->S.d2b->size()+lt->bias; ++s) {
+        fd(s,0) /= rij;
+        fd(s,1) = fd(s,0);
+        fd(s,2) = fd(s,0);
+        fd(s,0) *= delij[0];
+        fd(s,1) *= delij[1];
+        fd(s,2) *= delij[2];
       }
-      else {
-        // mode!=0, S.d2b calculates x-comp only, S.dmb calcs all 3-directions
+      if (lt->norm)
+        lt->model->norm.normalise(fd);
 
-        // copy 2b descriptors first and
-        // scale all 2b components by delij/rij
-        // this is inefficient but will do for now... TODO
-        for(size_t s=lt->bias; s<lt->S.d2b->size()+lt->bias; ++s) {
-          fd(s,0) /= rij;
-          fd(s,1) = fd(s,0);
-          fd(s,2) = fd(s,0);
-          fd(s,0) *= delij[0];
-          fd(s,1) *= delij[1];
-          fd(s,2) *= delij[2];
-        }
-        if (lt->norm)
-          lt->model->norm.normalise(fd);
+      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
-        // for mode!=0 we don't need to scale mb part by delij/rij
-        // as S.dmb calculator does it.
-        Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      f[i][0] += f_eam(0);
+      f[i][1] += f_eam(1);
+      f[i][2] += f_eam(2);
 
-        f[i][0] += f_eam(0);
-        f[i][1] += f_eam(1);
-        f[i][2] += f_eam(2);
+      f[j][0] -= f_eam(0);
+      f[j][1] -= f_eam(1);
+      f[j][2] -= f_eam(2);
 
-        f[j][0] -= f_eam(0);
-        f[j][1] -= f_eam(1);
-        f[j][2] -= f_eam(2);
-
-        if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
-                                 0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
-      }
+      if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
+                               0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
     }
   }
 
@@ -760,38 +712,13 @@ void PairTadah::compute_dimers(int eflag, int vflag)
           lt->S.d2b->calc_dXijdri(1,r[n],r_sq[n],fdIJ);
         }
 
-        int mode=0;
         if (lt->initmb && lt->S.dmb->get_rcut() > r[n]) {
-          mode = lt->S.dmb->calc_dXijdri(1,r[n],r_sq[n],delM.row(n),
-                                         lt->rhos.col(midx[n].first), fdIJ);
-          mode = lt->S.dmb->calc_dXijdri(1,r[n],r_sq[n],-delM.row(n),
-                                         lt->rhos.col(midx[n].second), fdJI);
+          lt->S.dmb->calc_dXijdri(1,r[n],r_sq[n],delM.row(n),
+                                  lt->rhos.col(midx[n].first), fdIJ);
+          lt->S.dmb->calc_dXijdri(1,r[n],r_sq[n],-delM.row(n),
+                                  lt->rhos.col(midx[n].second), fdJI);
         }
 
-        if (mode==0) {
-          // either compute 2b only or 2b+mb
-          if (lt->norm)
-            lt->model->norm.normalise(fdIJ,0);
-          double fpair = lt->model->fpredict(
-            fdIJ,lt->aeds.col(midx[n].first),0)/r[n];
-          //fpair -= lt->model->fpredict(
-          //        -fdIJ,lt->aeds.col(midx[n].second),0)/r[n];
-          // -fdIJ is removed from the math library
-          fpair += lt->model->fpredict(
-            fdIJ,lt->aeds.col(midx[n].second),0)/r[n];
-
-          f[I][0] += fpair*delM(n,0);
-          f[I][1] += fpair*delM(n,1);
-          f[I][2] += fpair*delM(n,2);
-
-          f[J][0] -= fpair*delM(n,0);
-          f[J][1] -= fpair*delM(n,1);
-          f[J][2] -= fpair*delM(n,2);
-
-          if (evflag) ev_tally(I,J,nlocal,newton_pair,0,0,fpair,
-                               delM(n,0),delM(n,1),delM(n,2));
-        }
-        else {
           for(size_t s=lt->bias; s<lt->S.d2b->size()+lt->bias; ++s) {
             fdIJ(s,0) /= r[n];
             fdIJ(s,1) = fdIJ(s,0);
@@ -830,7 +757,6 @@ void PairTadah::compute_dimers(int eflag, int vflag)
           if (evflag) ev_tally_xyz(I,J,nlocal,newton_pair,0.0,0.0,
                                    f_eam(0),f_eam(1),f_eam(2),
                                    delM(n,0),delM(n,1),delM(n,2));
-        }
       }
     }
   }
