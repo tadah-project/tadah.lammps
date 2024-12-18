@@ -75,7 +75,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
   int nlocal = atom->nlocal;
   Vec3d delij;
 
-  aed_type2 aed(lt->dsize);
+  aed_type aed(lt->dsize);
   fd_type fd(lt->dsize);
 
   int inum = list->inum;
@@ -923,7 +923,7 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  aed_type2 aed(lt->dsize);
+  aed_type aed(lt->dsize);
   fd_type fd(lt->dsize);
   aed.set_zero();
   // if (lt->bias)
