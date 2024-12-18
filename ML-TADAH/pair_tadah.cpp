@@ -92,6 +92,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
     jlist = firstneigh[i];
     jnum = numneigh[i];
 
+    int Zi = lt->Z[type[i]-1];
     for (jj = 0; jj < jnum; jj++) {
       aed.set_zero();
       j = jlist[jj];
@@ -105,7 +106,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
       int Zj = lt->Z[type[j]-1];
       double rij = sqrt(rij_sq);
-      lt->S.d2b->calc_all(Zj,rij,rij_sq,aed,fd);
+      lt->S.d2b->calc_all(Zi,Zj,rij,rij_sq,aed,fd);
 
       fpair = lt->model->fpredict(fd,aed,0)/rij;
       ei = lt->model->epredict(aed);
@@ -199,7 +200,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         lt->S.d2b->calc_aed(Zi,Zj,rij,rij_sq,lt->aeds.col(i),0.5);
 
         if (newton_pair || j < nlocal) {
-          lt->S.d2b->calc_aed(Zi,rij,rij_sq,lt->aeds.col(j),0.5);
+          lt->S.d2b->calc_aed(Zi,Zj,rij,rij_sq,lt->aeds.col(j),0.5);
         }
       }
 
@@ -360,6 +361,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     jlist = firstneigh[i];
     jnum = numneigh[i];
 
+    double Zi = lt->Z[type[i]-1];
     for (jj = 0; jj < jnum; jj++) {
       j = jlist[jj];
       j &= NEIGHMASK;
@@ -929,10 +931,10 @@ double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   aed.set_zero();
   // if (lt->bias)
   //   aed(0) = 1.0;
-  //int Zi = lt->Z[itype-1];
+  int Zi = lt->Z[itype-1];
   int Zj = lt->Z[jtype-1];
   double rij = sqrt(rsq);
-  lt->S.d2b->calc_all(Zj,rij,rsq,aed, fd);
+  lt->S.d2b->calc_all(Zi,Zj,rij,rsq,aed, fd);
   fforce = lt->model->fpredict(fd,aed,0)/rij;
   double ei = lt->model->epredict(aed);
   return ei;
