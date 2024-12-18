@@ -208,7 +208,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         lt->S.dmb->calc_rho(Zi,Zj,rij,rij_sq,delij,lt->rhos.col(i));
 
         if (newton_pair || j < nlocal) {
-          lt->S.dmb->calc_rho(Zi,Zj,rij,rij_sq,-delij,lt->rhos.col(j));
+          lt->S.dmb->calc_rho(Zj,Zi,rij,rij_sq,-delij,lt->rhos.col(j));
         }
       }
     }
