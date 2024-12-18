@@ -5,7 +5,7 @@ core=$(dir)/_deps/tadah.core-build
 models=$(dir)/_deps/tadah.models-build
 md=$(dir)/_deps/tadah.md-build
 
-tadah_lnk=-L$(dir) -l$(lib) -L$(core) -ltadah.core -lconfig-resources -L$(models) -ltadah.models -L$(md) -ltadah.md
+tadah_lnk=-L$(dir) -l$(lib) -L$(md) -ltadah.md -L$(models) -ltadah.models -L$(core) -ltadah.core -lconfig-resources 
 
 toml_src=$(dir)/_deps/tadah.core-src/external/toml11
 core_src=$(dir)/_deps/tadah.core-src/include
