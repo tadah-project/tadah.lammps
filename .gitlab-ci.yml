@@ -44,7 +44,7 @@ build_release_static:
     - make -j ${CPU_BUILD}
 
 test_tadah_lammps:
-  stage: build_debug
+  stage: test_tadah_lammps
   script:
     - mkdir -p ~/opt
     - git clone --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
