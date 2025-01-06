@@ -47,7 +47,7 @@ test_tadah_lammps:
   stage: test_tadah_lammps
   script:
     - mkdir -p ~/opt
-    - git clone --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
+    - git clone -b stable --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
     - git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps
     - cd ~/opt/lammps/src
     - make -j10 serial
