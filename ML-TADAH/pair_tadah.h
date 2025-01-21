@@ -11,6 +11,11 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
+/*----------------------------------------------------------------------*/
+/* Contributing author: Marcin Kirsz | marcin.kirsz@ed.ac.uk            */
+/* The University of Edinburgh       | https://git.ecdf.ed.ac.uk/tadah  */
+/*----------------------------------------------------------------------*/
+
 #ifdef PAIR_CLASS
 // clang-format off
 PairStyle(tadah,PairTadah)
@@ -21,7 +26,7 @@ PairStyle(tadah,PairTadah)
 #define LMP_PAIR_TADAH_H
 
 #include "pair.h"
-#include "../../lib/tadah.lammps/lammps_tadah.h"
+#include <lammps_tadah.h>
 
 namespace LAMMPS_NS {
 
@@ -38,7 +43,7 @@ namespace LAMMPS_NS {
       void compute_dimers(int eflag, int vflag);
       std::vector<std::pair<int,int>> midx;
 
-      TADAH::LammpsTadah lt;
+      TADAH::LammpsTadah *lt=nullptr;
       int nmax=0;
       void allocate();
 
