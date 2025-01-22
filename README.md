@@ -1,6 +1,8 @@
 # Tadah!LAMMPS
 
-This is a LAMMPS plugin required to run interatomic potentials developed with **Tadah!MLIP**. It's also needed for building **Tadah!MLIP** with HPO. Please refer to the online documentation in this case.
+This repository provides the LAMMPS library (`tadah.lammps`) and plugin (`ML-TADAH`) required to run interatomic potentials developed with **Tadah!MLIP**.
+
+**Note:** LAMMPS compiled with **Tadah!LAMMPS** is also needed for building **Tadah!MLIP** with hyperparameter optimization toolkit (HPO module). Please refer to the online documentation for more information.
 
 [https://tadah.readthedocs.io/](https://tadah.readthedocs.io/)
 
@@ -10,6 +12,9 @@ In the near future, we intend to distribute this plugin with the LAMMPS source c
 
 1. Clone this repository to `lammps/lib`.  
    The directory name must match the repository name: `tadah.lammps`.
+   ```bash
+   # cd to /path/to/lammps/lib
+   git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git
 
 2. In `lammps/src`, issue the following commands:
 
