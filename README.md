@@ -15,13 +15,16 @@ In the near future, we intend to distribute this plugin with the LAMMPS source c
    ```bash
    # cd to /path/to/lammps/lib
    git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git
+   ```
 
-2. In `lammps/src`, issue the following commands:
+   The command above will clone content of this repository to `/path/to/lammps/lib/tadah.lammps/` as required.
+
+2. Go to `lammps/src` directory and issue the following commands:
 
    ```bash
    make lib-tadah.lammps
    make yes-ml-tadah
    make serial
-
-The first command compiles the **Tadah!LAMMPS** library and copies the `ML-TADAH` plugin to the `lammps/src` directory. The second command adds `ML-TADAH` to the list of packages compiled by LAMMPS. Finally, `make serial` recompiles the LAMMPS software. Please note that this command compiles a standard, non-parallel version of LAMMPS. Users are expected to adjust this as needed.
+   ```
+   The first command compiles the **Tadah!LAMMPS** library  and copies the `ML-TADAH` plugin to the `lammps/src` directory. The second command adds `ML-TADAH` to the list of packages compiled by LAMMPS. Finally, `make serial` recompiles the LAMMPS software. Please note that this command compiles a standard, non-parallel version of LAMMPS. Users are expected to adjust this as needed.
 
