@@ -2,6 +2,7 @@ stages:
   - build_debug
   - run_unit_tests
   - build_release
+  - test_tadah_lammps
 
 cache:
     paths:
@@ -41,3 +42,15 @@ build_release_static:
     - cd ${RELEASE_STATIC_DIR}
     - cmake ../.. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
     - make -j ${CPU_BUILD}
+
+test_tadah_lammps:
+  stage: test_tadah_lammps
+  script:
+    - mkdir -p ~/opt
+    - git clone -b stable --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
+    - git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps
+    - cd ~/opt/lammps/src
+    - make -j10 serial
+    - make lib-tadah.lammps
+    - make yes-ml-tadah
+    - make -j10 serial
