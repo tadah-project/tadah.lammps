@@ -86,11 +86,11 @@ int LammpsTadah::pack_reverse_linear(int n, int first, double *buf)
   int last = first + n;
   for (int i = first; i < last; i++) {
     for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-      buf[m++] = rhos(i,x);
+      buf[m++] = rhos(x,i);
     // pack two-body only, as many-body will be computed from rho
     // which is being packed hence we do now comm mb-aeds
     for (size_t x = bias; x < S.d2b->size()+bias; x++)
-      buf[m++] = aeds(i,x);
+      buf[m++] = aeds(x,i);
   }
   return m;
 }
@@ -100,9 +100,9 @@ void LammpsTadah::unpack_reverse_linear(int n, int *list, double *buf)
   for (int i = 0; i < n; i++) {
     int j = list[i];
     for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-      rhos(j,x) += buf[m++];
+      rhos(x,j) += buf[m++];
     for (size_t x = bias; x < S.d2b->size()+bias; x++)
-      aeds(j,x) += buf[m++];
+      aeds(x,j) += buf[m++];
   }
 }
 // Pack the derivative of the embedding func
@@ -112,7 +112,7 @@ int LammpsTadah::pack_forward_linear(int n, int *list, double *buf)
   for (int i = 0; i < n; i++) {
     int j = list[i];
     for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-      buf[m++] = rhos(j,x);
+      buf[m++] = rhos(x,j);
   }
   return m;
 }
@@ -123,7 +123,7 @@ void LammpsTadah::unpack_forward_linear(int n, int first, double *buf)
   int last = first + n;
   for (int i = first; i < last; i++) {
     for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-      rhos(i,x) = buf[m++];
+      rhos(x,i) = buf[m++];
   }
 }
 // NONLINEAR
@@ -135,11 +135,11 @@ int LammpsTadah::pack_reverse_nonlinear(int n, int first, double *buf)
   last = first + n;
   for (i = first; i < last; i++) {
     for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-      buf[m++] = rhos(i,x);
+      buf[m++] = rhos(x,i);
     // pack two-body only, as many-body will be computed from rho
     // which is packed above hence we do now comm mb-aeds
     for (size_t x = bias; x < S.d2b->size()+bias; x++)
-      buf[m++] = aeds(i,x);
+      buf[m++] = aeds(x,i);
   }
   return m;
 }
@@ -151,9 +151,9 @@ void LammpsTadah::unpack_reverse_nonlinear(int n, int *list, double *buf)
   for (i = 0; i < n; i++) {
     j = list[i];
     for (size_t x = 0; x < S.dmb->rhoi_size(); x++)
-      rhos(j,x) += buf[m++];
+      rhos(x,j) += buf[m++];
     for (size_t x = bias; x < S.d2b->size()+bias; x++)
-      aeds(j,x) += buf[m++];
+      aeds(x,j) += buf[m++];
   }
 }
 int LammpsTadah::pack_forward_nonlinear(int n, int *list, double *buf)
@@ -164,9 +164,9 @@ int LammpsTadah::pack_forward_nonlinear(int n, int *list, double *buf)
   for (i = 0; i < n; i++) {
     j = list[i];
     for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-      buf[m++] = rhos(j,x);
+      buf[m++] = rhos(x,j);
     for (size_t x = bias; x < S.d2b->size()+S.dmb->size()+bias; x++)
-      buf[m++] = aeds(j,x);
+      buf[m++] = aeds(x,j);
   }
   return m;
 }
@@ -178,8 +178,8 @@ void LammpsTadah::unpack_forward_nonlinear(int n, int first, double *buf)
   last = first + n;
   for (i = first; i < last; i++) {
     for (size_t x = S.dmb->rhoi_size(); x < S.dmb->rhoi_size()+S.dmb->rhoip_size(); x++)
-      rhos(i,x) = buf[m++];
+      rhos(x,i) = buf[m++];
     for (size_t x = bias; x < S.d2b->size()+S.dmb->size()+bias; x++)
-      aeds(i,x) = buf[m++];
+      aeds(x,i) = buf[m++];
   }
 }
