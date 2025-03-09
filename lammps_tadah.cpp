@@ -15,9 +15,9 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   init2b(c.get<bool>("INIT2B")),
   initmb(c.get<bool>("INITMB")),
   S(c),
-  fb(CONFIG::factory<Function_Base,Config&>(
+  fb(tadah::core::factory<Function_Base,Config&>(
     c.get<std::string>("MODEL",1),c)),
-  model(CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
+  model(tadah::core::factory<M_MD_Base,Function_Base&,Config&>(
     c.get<std::string>("MODEL",0),*fb,c))
 {
   // Map LAMMPS atom types to weight factors
