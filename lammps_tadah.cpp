@@ -30,13 +30,13 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     std::string symbol=arg[i];
     if (symbol=="NULL") continue;
     size_t j=0;
-    for (j=0; j<c.size("ATOMS"); ++j) {
-      if (c.get<std::string>("ATOMS", j)==symbol) {
+    for (j=0; j<c.size("ATOM"); ++j) {
+      if (c.get<std::string>("ATOM", j)==symbol) {
         Z[i-3] = core::PeriodicTable::find_by_symbol(symbol).Z;
         break;
       }
     }
-    if (j==c.size("ATOMS"))
+    if (j==c.size("ATOM"))
       throw std::runtime_error("Symbol not in potential file: "+symbol);
   }
 
@@ -47,22 +47,22 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
   // mind that it cannot be performed by the Context
   if (S.d2b->size()) {
-    c.add("SIZE2B",S.d2b->size());
+    c.addInternal("SIZE2B",S.d2b->size());
     dsize+=S.d2b->size();
     S.d2b->set_fidx(bias);
   }
   else {
-    c.add("SIZE2B",0);
+    c.addInternal("SIZE2B",0);
   }
 
   if (S.dmb->size()) {
-    c.add("SIZEMB",S.dmb->size());
+    c.addInternal("SIZEMB",S.dmb->size());
     dsize+=S.dmb->size();
     S.dmb->set_fidx(bias+S.d2b->size());
     rsize = S.dmb->rhoi_size()+ S.dmb->rhoip_size();
   }
   else {
-    c.add("SIZEMB",0);
+    c.addInternal("SIZEMB",0);
   }
 
   if (!dsize)
@@ -71,7 +71,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   if (c.get<bool>("BIAS"))
     dsize++;
 
-  c.add("DSIZE",dsize);
+  c.addInternal("DSIZE",dsize);
 }
 
 LammpsTadah::~LammpsTadah() {
