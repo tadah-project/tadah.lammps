@@ -37,7 +37,7 @@ using namespace LAMMPS_NS;
 
 PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
 {
-  PeriodicTable::initialize();
+  tadah::core::PeriodicTable::initialize();
   single_enable = 1; // 1 if single() method is implemented, 0 if missing
   restartinfo = 0; // 1 if pair style writes its settings to a restart
   one_coeff = 1; // 1 if only a pair_coeff * * command is allowed
@@ -73,10 +73,10 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
-  core::aed_type aed(lt->dsize);
-  core::fd_type fd(lt->dsize);
+  tadah::core::aed_type aed(lt->dsize);
+  tadah::core::fd_type fd(lt->dsize);
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -151,7 +151,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -159,7 +159,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
-  core::fd_type fd(lt->dsize);
+  tadah::core::fd_type fd(lt->dsize);
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
@@ -295,7 +295,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
       f[i][0] += f_eam(0);
       f[i][1] += f_eam(1);
@@ -329,7 +329,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -338,7 +338,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   int newton_pair = force->newton_pair;
 
   // fpsize x 3-directions
-  core::fd_type fd(lt->dsize);
+  tadah::core::fd_type fd(lt->dsize);
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
@@ -456,7 +456,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
       f[i][0] += f_eam(0);
       f[i][1] += f_eam(1);
@@ -497,18 +497,18 @@ void PairTadah::compute_dimers(int eflag, int vflag)
   tagint **special = atom->special;
   int **nspecial = atom->nspecial;
 
-  core::fd_type fdIJ(lt->dsize);
-  core::fd_type fdJI(lt->dsize);
+  tadah::core::fd_type fdIJ(lt->dsize);
+  tadah::core::fd_type fdJI(lt->dsize);
 
   //n= 0, 1, 2, 3
   int i1,i2,j1,j2;
-  Mat6R3C delM;
+  tadah::core::Mat6R3C delM;
   double r_sq[6];
   double r[6];
 
-  Vec3d delij_com;   // i-j CoM
-  Vec3d i_com;   // i CoM
-  Vec3d j_com;   // j CoM
+  tadah::core::Vec3d delij_com;   // i-j CoM
+  tadah::core::Vec3d i_com;   // i CoM
+  tadah::core::Vec3d j_com;   // j CoM
 
   // if bond is not included begin summation from the third distance
   int Nstart= lt->dimer_bond_bool ? 0:2;
@@ -749,7 +749,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             lt->model->norm.normalise(fdJI);
           }
 
-          Vec3d f_eam = lt->model->fpredict(fdIJ,lt->aeds.col(midx[n].first));
+          tadah::core::Vec3d f_eam = lt->model->fpredict(fdIJ,lt->aeds.col(midx[n].first));
           f_eam -= lt->model->fpredict(fdJI,lt->aeds.col(midx[n].second));
 
           f[I][0] += f_eam(0);
@@ -815,7 +815,7 @@ void PairTadah::coeff(int narg, char **arg)
   // e.g. pair_coeff * * pot.tadah Ta Nb NULL
   map_element2type(narg - 3, arg + 3, true);
 
-  lt = new TADAH::LammpsTadah(narg,arg);
+  lt = new tadah::LammpsTadah(narg,arg);
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;
   single_enable = lt->linear && !lt->initmb ? 1 : 0;
@@ -926,8 +926,8 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  core::aed_type aed(lt->dsize);
-  core::fd_type fd(lt->dsize);
+  tadah::core::aed_type aed(lt->dsize);
+  tadah::core::fd_type fd(lt->dsize);
   aed.set_zero();
   // if (lt->bias)
   //   aed(0) = 1.0;
