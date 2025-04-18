@@ -75,8 +75,8 @@ void PairTadah::compute_2b(int eflag, int vflag)
   int nlocal = atom->nlocal;
   Vec3d delij;
 
-  aed_type aed(lt->dsize);
-  fd_type fd(lt->dsize);
+  core::aed_type aed(lt->dsize);
+  core::fd_type fd(lt->dsize);
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -159,7 +159,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
-  fd_type fd(lt->dsize);
+  core::fd_type fd(lt->dsize);
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
@@ -338,7 +338,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   int newton_pair = force->newton_pair;
 
   // fpsize x 3-directions
-  fd_type fd(lt->dsize);
+  core::fd_type fd(lt->dsize);
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
@@ -497,8 +497,8 @@ void PairTadah::compute_dimers(int eflag, int vflag)
   tagint **special = atom->special;
   int **nspecial = atom->nspecial;
 
-  fd_type fdIJ(lt->dsize);
-  fd_type fdJI(lt->dsize);
+  core::fd_type fdIJ(lt->dsize);
+  core::fd_type fdJI(lt->dsize);
 
   //n= 0, 1, 2, 3
   int i1,i2,j1,j2;
@@ -926,8 +926,8 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  aed_type aed(lt->dsize);
-  fd_type fd(lt->dsize);
+  core::aed_type aed(lt->dsize);
+  core::fd_type fd(lt->dsize);
   aed.set_zero();
   // if (lt->bias)
   //   aed(0) = 1.0;

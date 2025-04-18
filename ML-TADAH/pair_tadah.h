@@ -43,7 +43,7 @@ namespace LAMMPS_NS {
       void compute_dimers(int eflag, int vflag);
       std::vector<std::pair<int,int>> midx;
 
-      TADAH::LammpsTadah *lt=nullptr;
+      tadah::LammpsTadah *lt=nullptr;
       int nmax=0;
       void allocate();
 

@@ -1,10 +1,11 @@
 #include <lammps_tadah.h>
 #include <tadah/core/periodic_table.h>
+#include <tadah/core/core_user_config_parser.h>
 
-using namespace TADAH;
+using namespace tadah;
 
 LammpsTadah::LammpsTadah(int narg, char **arg):
-  c(arg[2]),
+  c(core::CoreUserConfigParser().parse(core::to_string(arg[2]))),
   norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
   cutoff_max_sq(pow(c.get<double>("RCUTMAX"),2)),
   cutoff_max(c.get<double>("RCUTMAX")),
@@ -15,9 +16,9 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
   init2b(c.get<bool>("INIT2B")),
   initmb(c.get<bool>("INITMB")),
   S(c),
-  fb(tadah::core::factory<Function_Base,Config&>(
+  fb(core::factory<models::Function_Base,core::Context&>(
     c.get<std::string>("MODEL",1),c)),
-  model(tadah::core::factory<M_MD_Base,Function_Base&,Config&>(
+  model(tadah::core::factory<md::M_MD_Base,models::Function_Base&,core::Context&>(
     c.get<std::string>("MODEL",0),*fb,c))
 {
   // Map LAMMPS atom types to weight factors
@@ -31,7 +32,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     size_t j=0;
     for (j=0; j<c.size("ATOMS"); ++j) {
       if (c.get<std::string>("ATOMS", j)==symbol) {
-        Z[i-3] = PeriodicTable::find_by_symbol(symbol).Z;
+        Z[i-3] = core::PeriodicTable::find_by_symbol(symbol).Z;
         break;
       }
     }
@@ -44,7 +45,7 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     bias++;
 
   // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
-  // mind that it cannot be performed by the Config
+  // mind that it cannot be performed by the Context
   if (S.d2b->size()) {
     c.add("SIZE2B",S.d2b->size());
     dsize+=S.d2b->size();

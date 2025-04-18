@@ -1,7 +1,7 @@
 #ifndef LAMMPS_TADAH_H
 #define LAMMPS_TADAH_H
 
-#include <tadah/core/config.h>
+#include <tadah/core/context.h>
 #include <tadah/core/core_types.h>
 #include <tadah/core/registry.h>
 #include <tadah/core/periodic_table.h>
@@ -14,11 +14,11 @@
 #include <iostream>
 #include <string>
 
-namespace TADAH {
+namespace tadah {
 class LammpsTadah {
 
 public:
-  Config c;
+  core::Context c;
   bool norm;
   size_t bias=0;
   size_t dsize=0; // descriptor dim inc bias
@@ -34,12 +34,12 @@ public:
   bool initmb;
   std::vector<int> Z;
 
-  DC_Selector S;
-  Function_Base *fb=nullptr;
-  M_MD_Base *model=nullptr;
+  models::DC_Selector S;
+  models::Function_Base *fb=nullptr;
+  md::M_MD_Base *model=nullptr;
 
-  aeds_type2 aeds;
-  rhos_type rhos;
+  core::aeds_type2 aeds;
+  core::rhos_type rhos;
 
   LammpsTadah(int narg, char **arg);
   ~LammpsTadah();
