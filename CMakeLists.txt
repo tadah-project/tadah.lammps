@@ -116,8 +116,10 @@ target_include_directories(tadah.lammps PRIVATE .)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 target_link_libraries(tadah.lammps PUBLIC tadah.core)
 
-find_package(LAPACK)
-target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
+if (NOT TADAH_BUILD_DOCS_ONLY)
+  find_package(LAPACK)
+  target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
+endif()
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)
