@@ -58,8 +58,8 @@ namespace LAMMPS_NS {
       }
 
       bool load(int argc, char **argv);                          // CLI
-      bool load(const tadah::core::Context& ctx);                // copy
-      bool load(tadah::core::Context ctx);                       // move
+      bool load(const tadah::core::Context& ctx);   // copy from l-value
+      bool load(tadah::core::Context&& ctx);        // move from r-value
 
       PairTadah(class LAMMPS *);
       ~PairTadah() override;

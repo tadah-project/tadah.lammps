@@ -943,56 +943,42 @@ double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
 
 using tadah::LammpsTadah;
 
-// --------------------------------------------------------
-// 1. build from command-line arguments
-// --------------------------------------------------------
 bool PairTadah::load(int argc, char **argv)
 {
-    try
-    {
-        lt.reset(new tadah::LammpsTadah(argc, argv));
-        return true;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "PairTadah::load (CLI): " << e.what() << '\n';
-        lt.reset();                         // ensure we own nothing
-        return false;
-    }
+  try
+  {
+    lt.reset(new tadah::LammpsTadah(argc, argv));
+    return true;
+  }
+  catch (const std::exception& e)
+  {
+    std::cerr << "PairTadah::load (CLI): " << e.what() << '\n';
+    lt.reset();                         // ensure we own nothing
+    return false;
+  }
 }
 
-// --------------------------------------------------------
-// 2. build from an existing Context (l-value → copy once)
-// --------------------------------------------------------
 bool PairTadah::load(const tadah::core::Context& ctx)
 {
-    try
-    {
-        lt.reset(new tadah::LammpsTadah(ctx));   // copy-overload
+    try {
+        lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
         return true;
     }
-    catch (const std::exception& e)
-    {
-        std::cerr << "PairTadah::load (Context&): " << e.what() << '\n';
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;
     }
 }
 
-// --------------------------------------------------------
-// 3. build from a Context that the caller is willing to move
-//    (zero copy when an r-value is supplied)
-// --------------------------------------------------------
-bool PairTadah::load(tadah::core::Context ctx)    // by value
+bool PairTadah::load(tadah::core::Context&& ctx)
 {
-    try
-    {
-        lt.reset(new tadah::LammpsTadah(std::move(ctx)));  // move-overload
+    try {
+        lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
         return true;
     }
-    catch (const std::exception& e)
-    {
-        std::cerr << "PairTadah::load (Context&&): " << e.what() << '\n';
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;
     }
