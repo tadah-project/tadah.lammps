@@ -815,7 +815,8 @@ void PairTadah::coeff(int narg, char **arg)
   // e.g. pair_coeff * * pot.tadah Ta Nb NULL
   map_element2type(narg - 3, arg + 3, true);
 
-  lt = new tadah::LammpsTadah(narg,arg);
+  if (!lt)  // if not initialized yet as it could be init externally by a driver code
+    lt = new tadah::LammpsTadah(narg,arg);
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;
   single_enable = lt->linear && !lt->initmb ? 1 : 0;

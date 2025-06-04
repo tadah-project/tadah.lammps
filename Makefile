@@ -1,6 +1,9 @@
 TADAH_MD_CONFIGURED=true
 TADAH_MD_CONFIGURED=true
 ###############################################################################
+# 
+# WARNING: This compilation method is depreciated. Use CMake instead...
+#
 # To compile Tadah.MD just type 'make' inside the lib root directory.
 ###############################################################################
 CC:= g++
@@ -37,8 +40,8 @@ static: $(LIB.a) remove_dirs
 
 .DEFAULT_GOAL := static
 
-lammps_tadah: lammps_tadah.cpp
-	$(CC) $(CXXFLAGS) -o $(BUILD_DIR)/lammps_tadah.o -c lammps_tadah.cpp
+lammps_tadah: src/lammps_tadah.cpp
+	$(CC) $(CXXFLAGS) -o $(BUILD_DIR)/lammps_tadah.o -c src/lammps_tadah.cpp
 
 $(CORE_OBJ): $(BUILD_DIR)/%.o : %.cpp 
 	mkdir -p $(dir $@)

@@ -1,4 +1,4 @@
-#include <lammps_tadah.h>
+#include <tadah/tadah.lammps/lammps_tadah.h>
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/core_user_config_parser.h>
 

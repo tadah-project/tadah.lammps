@@ -26,7 +26,7 @@ PairStyle(tadah,PairTadah)
 #define LMP_PAIR_TADAH_H
 
 #include "pair.h"
-#include <lammps_tadah.h>
+#include <tadah/tadah.lammps/lammps_tadah.h>
 
 namespace LAMMPS_NS {
 
@@ -51,6 +51,9 @@ namespace LAMMPS_NS {
                 double /*factor_coul*/, double /*factor_lj*/, double &fforce);
 
     public:
+      void say_hello() const {
+        std::cout << "Hello from PairTadah!" << std::endl;
+      }
       PairTadah(class LAMMPS *);
       ~PairTadah() override;
 

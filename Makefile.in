@@ -1,5 +1,8 @@
 TADAH_MD_CONFIGURED=true
 ###############################################################################
+# 
+# WARNING: This compilation method is depreciated. Use CMake instead...
+#
 # To compile Tadah.MD just type 'make' inside the lib root directory.
 ###############################################################################
 CC:= g++
