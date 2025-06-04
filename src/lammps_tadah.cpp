@@ -4,22 +4,49 @@
 
 using namespace tadah;
 
-LammpsTadah::LammpsTadah(int narg, char **arg):
-  c(core::CoreUserConfigParser().parse(core::to_string(arg[2]))),
-  norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
-  cutoff_max_sq(pow(c.get<double>("RCUTMAX"),2)),
-  cutoff_max(c.get<double>("RCUTMAX")),
-  linear(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear"),
-  dimer(c.get<bool>("DIMER",0)),
-  dimer_r(c.get<double>("DIMER",1)),
-  dimer_bond_bool(c.get<bool>("DIMER",2)),
-  init2b(c.get<bool>("INIT2B")),
-  initmb(c.get<bool>("INITMB")),
-  S(c),
-  fb(core::factory<models::Function_Base,core::Context&>(
-    c.get<std::string>("MODEL",1),c)),
-  model(tadah::core::factory<md::M_MD_Base,models::Function_Base&,core::Context&>(
-    c.get<std::string>("MODEL",0),*fb,c))
+LammpsTadah::LammpsTadah(core::Context&& ctx)
+    : c(std::move(ctx)),
+      norm   ( c.get<bool>("NORM") &&
+               !(c("MODEL")[1]=="BF_Linear" ||
+                 c("MODEL")[1]=="Kern_Linear") ),
+      cutoff_max_sq( std::pow(c.get<double>("RCUTMAX"), 2) ),
+      cutoff_max    ( c.get<double>("RCUTMAX") ),
+      linear        ( c("MODEL")[1]=="BF_Linear" ||
+                      c("MODEL")[1]=="Kern_Linear" ),
+      dimer         ( c.get<bool  >( "DIMER", 0 ) ),
+      dimer_r       ( c.get<double>( "DIMER", 1 ) ),
+      dimer_bond_bool( c.get<bool>( "DIMER", 2 ) ),
+      init2b        ( c.get<bool  >( "INIT2B" ) ),
+      initmb        ( c.get<bool  >( "INITMB" ) ),
+      S             ( c ),
+      fb   ( core::factory<models::Function_Base, core::Context&>(
+                 c.get<std::string>("MODEL", 1), c) ),
+      model( tadah::core::factory< md::M_MD_Base,
+                                   models::Function_Base&,
+                                   core::Context&>(
+                 c.get<std::string>("MODEL", 0), *fb, c) )
+{}
+
+// copy version : makes one explicit copy and delegates
+LammpsTadah::LammpsTadah(const core::Context& ctx)
+    : LammpsTadah(core::Context(ctx))   // copy-constructs a temporary,
+                                        // then moves in the delegating call
+{}
+
+LammpsTadah::LammpsTadah(int narg, char **arg)
+  : LammpsTadah( core::CoreUserConfigParser()
+      .parse(core::to_string(arg[2])) )
+{}
+
+LammpsTadah::~LammpsTadah() {
+
+  if (model)
+    delete model;
+  if (fb)
+    delete fb;
+}
+
+void LammpsTadah::initialize(int narg, char **arg)
 {
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
@@ -72,15 +99,10 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     dsize++;
 
   c.addInternal("DSIZE",dsize);
+
 }
 
-LammpsTadah::~LammpsTadah() {
 
-  if (model)
-    delete model;
-  if (fb)
-    delete fb;
-}
 int LammpsTadah::pack_reverse_linear(int n, int first, double *buf)
 {
   int m = 0;

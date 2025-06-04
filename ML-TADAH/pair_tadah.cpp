@@ -816,7 +816,9 @@ void PairTadah::coeff(int narg, char **arg)
   map_element2type(narg - 3, arg + 3, true);
 
   if (!lt)  // if not initialized yet as it could be init externally by a driver code
-    lt = new tadah::LammpsTadah(narg,arg);
+    PairTadah::load(narg, arg);
+
+  lt->initialize(narg, arg);
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;
   single_enable = lt->linear && !lt->initmb ? 1 : 0;
@@ -939,4 +941,10 @@ double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   fforce = lt->model->fpredict(fd,aed,0)/rij;
   double ei = lt->model->epredict(aed);
   return ei;
+}
+bool PairTadah::load(int narg, char **arg) {
+  lt = new tadah::LammpsTadah(narg, arg);
+}
+bool PairTadah::load(const tadah::core::Context &context) {
+  lt = new tadah::LammpsTadah(context);
 }

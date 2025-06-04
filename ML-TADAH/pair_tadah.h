@@ -54,6 +54,10 @@ namespace LAMMPS_NS {
       void say_hello() const {
         std::cout << "Hello from PairTadah!" << std::endl;
       }
+
+      bool load(int narg, char **arg);
+      bool load(const tadah::core::Context &context);
+
       PairTadah(class LAMMPS *);
       ~PairTadah() override;
 

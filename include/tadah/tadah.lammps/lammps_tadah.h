@@ -41,7 +41,10 @@ public:
   core::aeds_type2 aeds;
   core::rhos_type rhos;
 
+  explicit LammpsTadah(const core::Context&  ctx);   // copies
+  explicit LammpsTadah(core::Context&& ctx);         // moves
   LammpsTadah(int narg, char **arg);
+  void initialize(int narg, char **arg);
   ~LammpsTadah();
   LammpsTadah(const LammpsTadah&) = delete;
   LammpsTadah& operator=(const LammpsTadah&) = delete;
