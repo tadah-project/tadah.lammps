@@ -52,8 +52,6 @@ PairTadah::~PairTadah()
     memory->destroy(cutsq);
     //  delete[] map; // deleted elsewhere
   }
-  if (lt)
-    delete lt;
 }
 void PairTadah::compute_2b(int eflag, int vflag)
 {
@@ -942,9 +940,60 @@ double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   double ei = lt->model->epredict(aed);
   return ei;
 }
-bool PairTadah::load(int narg, char **arg) {
-  lt = new tadah::LammpsTadah(narg, arg);
+
+using tadah::LammpsTadah;
+
+// --------------------------------------------------------
+// 1. build from command-line arguments
+// --------------------------------------------------------
+bool PairTadah::load(int argc, char **argv)
+{
+    try
+    {
+        lt.reset(new tadah::LammpsTadah(argc, argv));
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "PairTadah::load (CLI): " << e.what() << '\n';
+        lt.reset();                         // ensure we own nothing
+        return false;
+    }
 }
-bool PairTadah::load(const tadah::core::Context &context) {
-  lt = new tadah::LammpsTadah(context);
+
+// --------------------------------------------------------
+// 2. build from an existing Context (l-value → copy once)
+// --------------------------------------------------------
+bool PairTadah::load(const tadah::core::Context& ctx)
+{
+    try
+    {
+        lt.reset(new tadah::LammpsTadah(ctx));   // copy-overload
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "PairTadah::load (Context&): " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
+}
+
+// --------------------------------------------------------
+// 3. build from a Context that the caller is willing to move
+//    (zero copy when an r-value is supplied)
+// --------------------------------------------------------
+bool PairTadah::load(tadah::core::Context ctx)    // by value
+{
+    try
+    {
+        lt.reset(new tadah::LammpsTadah(std::move(ctx)));  // move-overload
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "PairTadah::load (Context&&): " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
 }

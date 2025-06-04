@@ -1,50 +1,86 @@
 #include <tadah/tadah.lammps/lammps_tadah.h>
-#include <tadah/core/periodic_table.h>
 #include <tadah/core/core_user_config_parser.h>
+#include <tadah/core/periodic_table.h>
+#include <tadah/core/registry.h>
+
+#include <cmath>
+#include <stdexcept>
+#include <utility>
 
 using namespace tadah;
 
+/*-------------------------------------------*/
+/* helper that does the heavy initialisation */
+/*-------------------------------------------*/
+void build_sub_objects(LammpsTadah& self)
+{
+    self.norm = self.c.get<bool>("NORM") &&
+                !( self.c("MODEL")[1] == "BF_Linear" ||
+                   self.c("MODEL")[1] == "Kern_Linear" );
+
+    self.cutoff_max     = self.c.get<double>("RCUTMAX");
+    self.cutoff_max_sq  = std::pow(self.cutoff_max, 2);
+
+    self.linear = self.c("MODEL")[1] == "BF_Linear" ||
+                  self.c("MODEL")[1] == "Kern_Linear";
+
+    self.dimer           = self.c.get<bool  >( "DIMER", 0 );
+    self.dimer_r         = self.c.get<double>( "DIMER", 1 );
+    self.dimer_bond_bool = self.c.get<bool  >( "DIMER", 2 );
+
+    self.init2b = self.c.get<bool>("INIT2B");
+    self.initmb = self.c.get<bool>("INITMB");
+
+    /* ---- create Function_Base ---- */
+    auto fb_ptr = core::factory<models::Function_Base, core::Context&>(
+                      self.c.get<std::string>("MODEL", 1), self.c);
+    if (!fb_ptr)
+        throw std::runtime_error("cannot build Function_Base for model "
+                                 + self.c.get<std::string>("MODEL", 1));
+    self.fb.reset(fb_ptr);
+
+    /* ---- create MD model ---- */
+    auto model_ptr = tadah::core::factory<
+                         md::M_MD_Base,
+                         models::Function_Base&, core::Context&>(
+                         self.c.get<std::string>("MODEL", 0),
+                         *self.fb, self.c);
+    if (!model_ptr)
+        throw std::runtime_error("cannot build MD model "
+                                 + self.c.get<std::string>("MODEL", 0));
+    self.model.reset(model_ptr);
+}
+
+/*-------------------------------------------*/
+/* main constructor – takes Context by move  */
+/*-------------------------------------------*/
 LammpsTadah::LammpsTadah(core::Context&& ctx)
     : c(std::move(ctx)),
-      norm   ( c.get<bool>("NORM") &&
-               !(c("MODEL")[1]=="BF_Linear" ||
-                 c("MODEL")[1]=="Kern_Linear") ),
-      cutoff_max_sq( std::pow(c.get<double>("RCUTMAX"), 2) ),
-      cutoff_max    ( c.get<double>("RCUTMAX") ),
-      linear        ( c("MODEL")[1]=="BF_Linear" ||
-                      c("MODEL")[1]=="Kern_Linear" ),
-      dimer         ( c.get<bool  >( "DIMER", 0 ) ),
-      dimer_r       ( c.get<double>( "DIMER", 1 ) ),
-      dimer_bond_bool( c.get<bool>( "DIMER", 2 ) ),
-      init2b        ( c.get<bool  >( "INIT2B" ) ),
-      initmb        ( c.get<bool  >( "INITMB" ) ),
-      S             ( c ),
-      fb   ( core::factory<models::Function_Base, core::Context&>(
-                 c.get<std::string>("MODEL", 1), c) ),
-      model( tadah::core::factory< md::M_MD_Base,
-                                   models::Function_Base&,
-                                   core::Context&>(
-                 c.get<std::string>("MODEL", 0), *fb, c) )
-{}
-
-// copy version : makes one explicit copy and delegates
-LammpsTadah::LammpsTadah(const core::Context& ctx)
-    : LammpsTadah(core::Context(ctx))   // copy-constructs a temporary,
-                                        // then moves in the delegating call
-{}
-
-LammpsTadah::LammpsTadah(int narg, char **arg)
-  : LammpsTadah( core::CoreUserConfigParser()
-      .parse(core::to_string(arg[2])) )
-{}
-
-LammpsTadah::~LammpsTadah() {
-
-  if (model)
-    delete model;
-  if (fb)
-    delete fb;
+      S(c)                     // DC_Selector may need the Context early
+{
+    build_sub_objects(*this);
 }
+
+/*-------------------------------------------*/
+/* copy-in constructor                       */
+/*-------------------------------------------*/
+LammpsTadah::LammpsTadah(const core::Context& ctx)
+    : c(ctx),                 // one copy
+      S(c)
+{
+    build_sub_objects(*this);
+}
+
+/*-------------------------------------------*/
+/* command-line constructor                  */
+/*-------------------------------------------*/
+LammpsTadah::LammpsTadah(int argc, char** argv)
+    : LammpsTadah(
+          core::CoreUserConfigParser()
+              .parse(core::to_string(argv[2])) )
+{
+}
+
 
 void LammpsTadah::initialize(int narg, char **arg)
 {
