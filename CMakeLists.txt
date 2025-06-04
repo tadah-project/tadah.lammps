@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(tadah.LAMMPS)
+project(Tadah.LAMMPS)
 set(TADAH "Tadah!")
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
