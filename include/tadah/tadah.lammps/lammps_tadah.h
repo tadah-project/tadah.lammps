@@ -39,6 +39,8 @@ public:
   void unpack_forward_nonlinear(int n, int first, double *buf);
 
 public:
+  bool pot_is_loaded=false;  // true if potential is loaded
+
     /* ------------ plain data ------------ */
     core::Context  c;
 
