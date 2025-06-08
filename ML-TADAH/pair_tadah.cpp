@@ -947,10 +947,7 @@ bool PairTadah::load(int argc, char **argv)
 {
   try
   {
-    if (!lt.pot_is_loaded()) {
-      lt.reset(new tadah::LammpsTadah(argc, argv));
-      lt.pot_is_loaded = true;
-    }
+    lt.reset(new tadah::LammpsTadah(argc, argv));
     return true;
   }
   catch (const std::exception& e)
@@ -963,32 +960,26 @@ bool PairTadah::load(int argc, char **argv)
 
 bool PairTadah::load(const tadah::core::Context& ctx)
 {
-  try {
-    if (!lt.pot_is_loaded()) {
-      lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
-      lt.pot_is_loaded = true;
+    try {
+        lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
+        return true;
     }
-    return true;
-  }
-  catch (const std::exception& e) {
-    std::cerr << "PairTadah::load: " << e.what() << '\n';
-    lt.reset();
-    return false;
-  }
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
 }
 
 bool PairTadah::load(tadah::core::Context&& ctx)
 {
-  try {
-    if (!lt.pot_is_loaded()) {
-      lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
-      lt.pot_is_loaded = true;
+    try {
+        lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
+        return true;
     }
-    return true;
-  }
-  catch (const std::exception& e) {
-    std::cerr << "PairTadah::load: " << e.what() << '\n';
-    lt.reset();
-    return false;
-  }
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
 }
