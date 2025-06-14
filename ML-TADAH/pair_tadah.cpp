@@ -73,8 +73,8 @@ void PairTadah::compute_2b(int eflag, int vflag)
   int nlocal = atom->nlocal;
   tadah::core::Vec3d delij;
 
-  tadah::core::aed_type aed(lt.S.descriptor_size());
-  tadah::core::fd_type fd(lt.S.descriptor_size());
+  tadah::core::aed_type aed(lt->S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -157,13 +157,13 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
-  tadah::core::fd_type fd(lt.S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
-    lt->rhos.resize(lt.S.density_size(),nmax);
-    lt->aeds.resize(lt.S.descriptor_size(),nmax);
+    lt->rhos.resize(lt->S.density_size(),nmax);
+    lt->aeds.resize(lt->S.descriptor_size(),nmax);
   }
 
   lt->rhos.set_zero();
@@ -336,13 +336,13 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   int newton_pair = force->newton_pair;
 
   // fpsize x 3-directions
-  tadah::core::fd_type fd(lt.S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
-    lt->rhos.resize(lt.S.density_size(), nmax);
-    lt->aeds.resize(lt.S.descriptor_size(), nmax);
+    lt->rhos.resize(lt->S.density_size(), nmax);
+    lt->aeds.resize(lt->S.descriptor_size(), nmax);
   }
 
   lt->rhos.set_zero();
@@ -495,8 +495,8 @@ void PairTadah::compute_dimers(int eflag, int vflag)
   tagint **special = atom->special;
   int **nspecial = atom->nspecial;
 
-  tadah::core::fd_type fdIJ(lt.S.descriptor_size());
-  tadah::core::fd_type fdJI(lt.S.descriptor_size());
+  tadah::core::fd_type fdIJ(lt->S.descriptor_size());
+  tadah::core::fd_type fdJI(lt->S.descriptor_size());
 
   //n= 0, 1, 2, 3
   int i1,i2,j1,j2;
@@ -851,7 +851,7 @@ void PairTadah::coeff(int narg, char **arg)
     midx[3] = std::make_pair(1,3);
     midx[4] = std::make_pair(0,3);
     midx[5] = std::make_pair(1,2);   
-    lt->aeds.resize(lt.S.descriptor_size(),4);
+    lt->aeds.resize(lt->S.descriptor_size(),4);
 
     if (lt->initmb) {
       size_t s = lt->S.dmb->rhoi_size()+ lt->S.dmb->rhoip_size();
@@ -927,8 +927,8 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  tadah::core::aed_type aed(lt.S.descriptor_size());
-  tadah::core::fd_type fd(lt.S.descriptor_size());
+  tadah::core::aed_type aed(lt->S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
   aed.set_zero();
   // if (lt->bias)
   //   aed(0) = 1.0;
