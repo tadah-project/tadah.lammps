@@ -103,38 +103,7 @@ void LammpsTadah::initialize(int narg, char **arg)
       throw std::runtime_error("Symbol not in potential file: "+symbol);
   }
 
-  // bias affects position of fidx for descriptors
-  if (c.get<bool>("BIAS"))
-    bias++;
-
-  // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
-  // mind that it cannot be performed by the Context
-  if (S.d2b->size()) {
-    c.addInternal("SIZE2B",S.d2b->size());
-    dsize+=S.d2b->size();
-    S.d2b->set_fidx(bias);
-  }
-  else {
-    c.addInternal("SIZE2B",0);
-  }
-
-  if (S.dmb->size()) {
-    c.addInternal("SIZEMB",S.dmb->size());
-    dsize+=S.dmb->size();
-    S.dmb->set_fidx(bias+S.d2b->size());
-    rsize = S.dmb->rhoi_size()+ S.dmb->rhoip_size();
-  }
-  else {
-    c.addInternal("SIZEMB",0);
-  }
-
-  if (!dsize)
-    throw std::runtime_error("The descriptor size is 0, check your config.");
-
-  if (c.get<bool>("BIAS"))
-    dsize++;
-
-  c.addInternal("DSIZE",dsize);
+  c.addInternal("DSIZE",S.descriptor_size());
 
 }
 
