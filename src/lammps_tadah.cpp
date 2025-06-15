@@ -104,6 +104,8 @@ void LammpsTadah::initialize(int narg, char **arg)
   }
 
   c.addInternal("DSIZE",S.descriptor_size());
+  bias = S.bias; 
+  rsize = S.rsize; // size of the density array (rhoi + rhoip)
 
 }
 
