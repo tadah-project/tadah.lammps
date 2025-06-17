@@ -115,6 +115,7 @@ add_library(tadah.lammps STATIC src/lammps_tadah.cpp)
 target_include_directories(tadah.lammps PUBLIC include)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 target_link_libraries(tadah.lammps PUBLIC tadah.core)
+target_link_libraries(tadah.lammps PUBLIC tadah.models)
 
 if (NOT TADAH_BUILD_DOCS_ONLY)
   find_package(LAPACK)
