@@ -37,7 +37,7 @@ using namespace LAMMPS_NS;
 
 PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
 {
-  PeriodicTable::initialize();
+  tadah::core::PeriodicTable::initialize();
   single_enable = 1; // 1 if single() method is implemented, 0 if missing
   restartinfo = 0; // 1 if pair style writes its settings to a restart
   one_coeff = 1; // 1 if only a pair_coeff * * command is allowed
@@ -52,8 +52,6 @@ PairTadah::~PairTadah()
     memory->destroy(cutsq);
     //  delete[] map; // deleted elsewhere
   }
-  if (lt)
-    delete lt;
 }
 void PairTadah::compute_2b(int eflag, int vflag)
 {
@@ -73,10 +71,10 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
-  aed_type aed(lt->dsize);
-  fd_type fd(lt->dsize);
+  tadah::core::aed_type aed(lt->S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -151,7 +149,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -159,13 +157,13 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
-  fd_type fd(lt->dsize);
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
-    lt->rhos.resize(lt->rsize,nmax);
-    lt->aeds.resize(lt->dsize,nmax);
+    lt->rhos.resize(lt->S.density_size(),nmax);
+    lt->aeds.resize(lt->S.descriptor_size(),nmax);
   }
 
   lt->rhos.set_zero();
@@ -295,7 +293,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
       f[i][0] += f_eam(0);
       f[i][1] += f_eam(1);
@@ -329,7 +327,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   int *type = atom->type;
   int nlocal = atom->nlocal;
-  Vec3d delij;
+  tadah::core::Vec3d delij;
 
   int inum = list->inum;
   ilist = list->ilist;
@@ -338,13 +336,13 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   int newton_pair = force->newton_pair;
 
   // fpsize x 3-directions
-  fd_type fd(lt->dsize);
+  tadah::core::fd_type fd(lt->S.descriptor_size());
 
   // grow arrays if necessary
   if (atom->nmax > nmax) {
     nmax = atom->nmax;
-    lt->rhos.resize(lt->rsize, nmax);
-    lt->aeds.resize(lt->dsize, nmax);
+    lt->rhos.resize(lt->S.density_size(), nmax);
+    lt->aeds.resize(lt->S.descriptor_size(), nmax);
   }
 
   lt->rhos.set_zero();
@@ -456,7 +454,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
 
       f[i][0] += f_eam(0);
       f[i][1] += f_eam(1);
@@ -497,18 +495,18 @@ void PairTadah::compute_dimers(int eflag, int vflag)
   tagint **special = atom->special;
   int **nspecial = atom->nspecial;
 
-  fd_type fdIJ(lt->dsize);
-  fd_type fdJI(lt->dsize);
+  tadah::core::fd_type fdIJ(lt->S.descriptor_size());
+  tadah::core::fd_type fdJI(lt->S.descriptor_size());
 
   //n= 0, 1, 2, 3
   int i1,i2,j1,j2;
-  Mat6R3C delM;
+  tadah::core::Mat6R3C delM;
   double r_sq[6];
   double r[6];
 
-  Vec3d delij_com;   // i-j CoM
-  Vec3d i_com;   // i CoM
-  Vec3d j_com;   // j CoM
+  tadah::core::Vec3d delij_com;   // i-j CoM
+  tadah::core::Vec3d i_com;   // i CoM
+  tadah::core::Vec3d j_com;   // j CoM
 
   // if bond is not included begin summation from the third distance
   int Nstart= lt->dimer_bond_bool ? 0:2;
@@ -749,7 +747,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
             lt->model->norm.normalise(fdJI);
           }
 
-          Vec3d f_eam = lt->model->fpredict(fdIJ,lt->aeds.col(midx[n].first));
+          tadah::core::Vec3d f_eam = lt->model->fpredict(fdIJ,lt->aeds.col(midx[n].first));
           f_eam -= lt->model->fpredict(fdJI,lt->aeds.col(midx[n].second));
 
           f[I][0] += f_eam(0);
@@ -815,7 +813,10 @@ void PairTadah::coeff(int narg, char **arg)
   // e.g. pair_coeff * * pot.tadah Ta Nb NULL
   map_element2type(narg - 3, arg + 3, true);
 
-  lt = new TADAH::LammpsTadah(narg,arg);
+  if (!lt)  // if not initialized yet as it could be init externally by a driver code
+    PairTadah::load(narg, arg);
+
+  lt->initialize(narg, arg);
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;
   single_enable = lt->linear && !lt->initmb ? 1 : 0;
@@ -850,7 +851,7 @@ void PairTadah::coeff(int narg, char **arg)
     midx[3] = std::make_pair(1,3);
     midx[4] = std::make_pair(0,3);
     midx[5] = std::make_pair(1,2);   
-    lt->aeds.resize(lt->dsize,4);
+    lt->aeds.resize(lt->S.descriptor_size(),4);
 
     if (lt->initmb) {
       size_t s = lt->S.dmb->rhoi_size()+ lt->S.dmb->rhoip_size();
@@ -926,8 +927,8 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
-  aed_type aed(lt->dsize);
-  fd_type fd(lt->dsize);
+  tadah::core::aed_type aed(lt->S.descriptor_size());
+  tadah::core::fd_type fd(lt->S.descriptor_size());
   aed.set_zero();
   // if (lt->bias)
   //   aed(0) = 1.0;
@@ -938,4 +939,47 @@ double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
   fforce = lt->model->fpredict(fd,aed,0)/rij;
   double ei = lt->model->epredict(aed);
   return ei;
+}
+
+using tadah::LammpsTadah;
+
+bool PairTadah::load(int argc, char **argv)
+{
+  try
+  {
+    lt.reset(new tadah::LammpsTadah(argc, argv));
+    return true;
+  }
+  catch (const std::exception& e)
+  {
+    std::cerr << "PairTadah::load (CLI): " << e.what() << '\n';
+    lt.reset();                         // ensure we own nothing
+    return false;
+  }
+}
+
+bool PairTadah::load(const tadah::core::Context& ctx)
+{
+    try {
+        lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
+}
+
+bool PairTadah::load(tadah::core::Context&& ctx)
+{
+    try {
+        lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "PairTadah::load: " << e.what() << '\n';
+        lt.reset();
+        return false;
+    }
 }

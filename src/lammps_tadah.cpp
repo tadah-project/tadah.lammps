@@ -1,24 +1,88 @@
-#include <lammps_tadah.h>
+#include <tadah/tadah.lammps/lammps_tadah.h>
+#include <tadah/core/core_user_config_parser.h>
 #include <tadah/core/periodic_table.h>
+#include <tadah/core/registry.h>
 
-using namespace TADAH;
+#include <cmath>
+#include <stdexcept>
+#include <utility>
 
-LammpsTadah::LammpsTadah(int narg, char **arg):
-  c(arg[2]),
-  norm(c.get<bool>("NORM") && !(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear")),
-  cutoff_max_sq(pow(c.get<double>("RCUTMAX"),2)),
-  cutoff_max(c.get<double>("RCUTMAX")),
-  linear(c("MODEL")[1]=="BF_Linear" || c("MODEL")[1]=="Kern_Linear"),
-  dimer(c.get<bool>("DIMER",0)),
-  dimer_r(c.get<double>("DIMER",1)),
-  dimer_bond_bool(c.get<bool>("DIMER",2)),
-  init2b(c.get<bool>("INIT2B")),
-  initmb(c.get<bool>("INITMB")),
-  S(c),
-  fb(CONFIG::factory<Function_Base,Config&>(
-    c.get<std::string>("MODEL",1),c)),
-  model(CONFIG::factory<M_MD_Base,Function_Base&,Config&>(
-    c.get<std::string>("MODEL",0),*fb,c))
+using namespace tadah;
+
+/*-------------------------------------------*/
+/* helper that does the heavy initialisation */
+/*-------------------------------------------*/
+void build_sub_objects(LammpsTadah& self)
+{
+    self.norm = self.c.get<bool>("NORM") &&
+                !( self.c("MODEL")[1] == "BF_Linear" ||
+                   self.c("MODEL")[1] == "Kern_Linear" );
+
+    self.cutoff_max     = self.c.get<double>("RCUTMAX");
+    self.cutoff_max_sq  = std::pow(self.cutoff_max, 2);
+
+    self.linear = self.c("MODEL")[1] == "BF_Linear" ||
+                  self.c("MODEL")[1] == "Kern_Linear";
+
+    self.dimer           = self.c.get<bool  >( "DIMER", 0 );
+    self.dimer_r         = self.c.get<double>( "DIMER", 1 );
+    self.dimer_bond_bool = self.c.get<bool  >( "DIMER", 2 );
+
+    self.init2b = self.c.get<bool>("INIT2B");
+    self.initmb = self.c.get<bool>("INITMB");
+
+    /* ---- create Function_Base ---- */
+    auto fb_ptr = core::factory<models::Function_Base, core::Context&>(
+                      self.c.get<std::string>("MODEL", 1), self.c);
+    if (!fb_ptr)
+        throw std::runtime_error("cannot build Function_Base for model "
+                                 + self.c.get<std::string>("MODEL", 1));
+    self.fb.reset(fb_ptr);
+
+    /* ---- create MD model ---- */
+    auto model_ptr = tadah::core::factory<
+                         md::M_MD_Base,
+                         models::Function_Base&, core::Context&>(
+                         self.c.get<std::string>("MODEL", 0),
+                         *self.fb, self.c);
+    if (!model_ptr)
+        throw std::runtime_error("cannot build MD model "
+                                 + self.c.get<std::string>("MODEL", 0));
+    self.model.reset(model_ptr);
+}
+
+/*-------------------------------------------*/
+/* main constructor – takes Context by move  */
+/*-------------------------------------------*/
+LammpsTadah::LammpsTadah(core::Context&& ctx)
+    : c(std::move(ctx)),
+      S(c)                     // DC_Selector may need the Context early
+{
+    build_sub_objects(*this);
+}
+
+/*-------------------------------------------*/
+/* copy-in constructor                       */
+/*-------------------------------------------*/
+LammpsTadah::LammpsTadah(const core::Context& ctx)
+    : c(ctx),                 // one copy
+      S(c)
+{
+    build_sub_objects(*this);
+}
+
+/*-------------------------------------------*/
+/* command-line constructor                  */
+/*-------------------------------------------*/
+LammpsTadah::LammpsTadah(int argc, char** argv)
+    : LammpsTadah(
+          core::CoreUserConfigParser()
+              .parse(core::to_string(argv[2])) )
+{
+}
+
+
+void LammpsTadah::initialize(int narg, char **arg)
 {
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
@@ -29,57 +93,23 @@ LammpsTadah::LammpsTadah(int narg, char **arg):
     std::string symbol=arg[i];
     if (symbol=="NULL") continue;
     size_t j=0;
-    for (j=0; j<c.size("ATOMS"); ++j) {
-      if (c.get<std::string>("ATOMS", j)==symbol) {
-        Z[i-3] = PeriodicTable::find_by_symbol(symbol).Z;
+    for (j=0; j<c.size("ATOM"); ++j) {
+      if (c.get<std::string>("ATOM", j)==symbol) {
+        Z[i-3] = core::PeriodicTable::find_by_symbol(symbol).Z;
         break;
       }
     }
-    if (j==c.size("ATOMS"))
+    if (j==c.size("ATOM"))
       throw std::runtime_error("Symbol not in potential file: "+symbol);
   }
 
-  // bias affects position of fidx for descriptors
-  if (c.get<bool>("BIAS"))
-    bias++;
+  c.addInternal("DSIZE",S.descriptor_size());
+  bias = S.bias; 
+  rsize = S.rsize; // size of the density array (rhoi + rhoip)
 
-  // add INTERNAL_KEYS, this is normally done by the descriptor_calc::common_constructor()
-  // mind that it cannot be performed by the Config
-  if (S.d2b->size()) {
-    c.add("SIZE2B",S.d2b->size());
-    dsize+=S.d2b->size();
-    S.d2b->set_fidx(bias);
-  }
-  else {
-    c.add("SIZE2B",0);
-  }
-
-  if (S.dmb->size()) {
-    c.add("SIZEMB",S.dmb->size());
-    dsize+=S.dmb->size();
-    S.dmb->set_fidx(bias+S.d2b->size());
-    rsize = S.dmb->rhoi_size()+ S.dmb->rhoip_size();
-  }
-  else {
-    c.add("SIZEMB",0);
-  }
-
-  if (!dsize)
-    throw std::runtime_error("The descriptor size is 0, check your config.");
-
-  if (c.get<bool>("BIAS"))
-    dsize++;
-
-  c.add("DSIZE",dsize);
 }
 
-LammpsTadah::~LammpsTadah() {
 
-  if (model)
-    delete model;
-  if (fb)
-    delete fb;
-}
 int LammpsTadah::pack_reverse_linear(int n, int first, double *buf)
 {
   int m = 0;

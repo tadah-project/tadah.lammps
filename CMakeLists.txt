@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(tadah.LAMMPS)
+project(Tadah.LAMMPS)
 set(TADAH "Tadah!")
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
@@ -46,28 +46,6 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
 endif()
 
-string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
-if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
-  function(find_directory_case_insensitive target_name search_dir result_var)
-    execute_process(
-        COMMAND find "${search_dir}" -maxdepth 1 -type d -iname "${target_name}"
-        OUTPUT_VARIABLE found_dir
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    if(found_dir)
-      set(${result_var} "${found_dir}" PARENT_SCOPE)
-      message("${TADAH} Develop build: Found directory: ${found_dir}")
-    else()
-      set(${result_var} "" PARENT_SCOPE)
-      message("${TADAH} Develop build: Directory not found.")
-    endif()
-  endfunction()
-
-  find_directory_case_insensitive("md" "$ENV{TADAH_PATH}" DEVELOP_MD_DIR)
-  set(FETCHCONTENT_SOURCE_DIR_TADAH.MD "${DEVELOP_MD_DIR}")
-endif()
-
 # Check is build supported
 string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
 if (CMAKE_BUILD_TYPE STREQUAL "DEBUG" 
@@ -92,17 +70,39 @@ set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
     FORCE)
 
 
+string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
+if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
+  function(find_directory_case_insensitive target_name search_dir result_var)
+    execute_process(
+        COMMAND find "${search_dir}" -maxdepth 1 -type d -iname "${target_name}"
+        OUTPUT_VARIABLE found_dir
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+
+    if(found_dir)
+      set(${result_var} "${found_dir}" PARENT_SCOPE)
+      message("${TADAH} Develop build: Found directory: ${found_dir}")
+    else()
+      set(${result_var} "" PARENT_SCOPE)
+      message("${TADAH} Develop build: Directory not found.")
+    endif()
+  endfunction()
+
+  find_directory_case_insensitive("md" "$ENV{TADAH_PATH}" DEVELOP_MD_DIR)
+  set(FETCHCONTENT_SOURCE_DIR_TADAH.MD "${DEVELOP_MD_DIR}")
+endif()
+
 include(FetchContent)
 if(DEFINED ENV{CI_COMMIT_REF_NAME})
   set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
 else()
   execute_process(
-    COMMAND bash -c "git status | grep origin | sed -e 's/.*origin\\///' -e 's/[^a-zA-Z].*//'" 
+    COMMAND bash -c "git status | grep origin |sed -e 's/.*origin\\///' -e 's/[^a-zA-Z\/_-].*//'"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     OUTPUT_VARIABLE GIT_BRANCH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
-message(STATUS "${TADAH}.LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}.")
+message(STATUS "${TADAH}LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}")
 
 FetchContent_Declare(
     Tadah.MD
@@ -111,13 +111,15 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(Tadah.MD)
 
-add_library(tadah.lammps STATIC lammps_tadah.cpp)
-target_include_directories(tadah.lammps PRIVATE .)
+add_library(tadah.lammps STATIC src/lammps_tadah.cpp)
+target_include_directories(tadah.lammps PUBLIC include)
 target_link_libraries(tadah.lammps PUBLIC tadah.md)
 target_link_libraries(tadah.lammps PUBLIC tadah.core)
 
-find_package(LAPACK)
-target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
+if (NOT TADAH_BUILD_DOCS_ONLY)
+  find_package(LAPACK)
+  target_link_libraries (tadah.lammps PUBLIC ${LAPACK_LIBRARIES})
+endif()
 
 #########################################################################
 if(TADAH_MARCH_NATIVE)

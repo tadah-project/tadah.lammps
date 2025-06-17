@@ -5,6 +5,7 @@ stages:
   - test_tadah_lammps
 
 cache:
+    key: "$CI_PIPELINE_ID"
     paths:
     - ${BUILD_DIR}
 

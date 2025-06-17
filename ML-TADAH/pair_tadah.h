@@ -26,7 +26,8 @@ PairStyle(tadah,PairTadah)
 #define LMP_PAIR_TADAH_H
 
 #include "pair.h"
-#include <lammps_tadah.h>
+#include <memory>
+#include <tadah/tadah.lammps/lammps_tadah.h>
 
 namespace LAMMPS_NS {
 
@@ -43,7 +44,8 @@ namespace LAMMPS_NS {
       void compute_dimers(int eflag, int vflag);
       std::vector<std::pair<int,int>> midx;
 
-      TADAH::LammpsTadah *lt=nullptr;
+      std::unique_ptr<tadah::LammpsTadah> lt;
+
       int nmax=0;
       void allocate();
 
@@ -51,6 +53,14 @@ namespace LAMMPS_NS {
                 double /*factor_coul*/, double /*factor_lj*/, double &fforce);
 
     public:
+      void say_hello() const {
+        std::cout << "Hello from PairTadah!" << std::endl;
+      }
+
+      bool load(int argc, char **argv);                          // CLI
+      bool load(const tadah::core::Context& ctx);   // copy from l-value
+      bool load(tadah::core::Context&& ctx);        // move from r-value
+
       PairTadah(class LAMMPS *);
       ~PairTadah() override;
 
