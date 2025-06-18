@@ -5,7 +5,7 @@ echo "                   WARNING"
 echo "                   WORK IN PROGRESS"
 echo Compilation with make does NOT work.
 echo Make will compile without error but won\'t compile and link
-echo libtadah.lammps to necessary cmrc library.
+echo libtadah.lammps to necessary cmrc library. 
 echo Use CMake instead. This works fine.
 echo You might need to remove build directory before running cmake.
 echo "************************************************************************"
