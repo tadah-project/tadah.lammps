@@ -149,8 +149,9 @@ endif()
 message(STATUS "${PROJECT_NAME}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
 #########################################################################
 
-if(TADAH_BUILD_TESTS)
-  include(CTest) 
+set(BUILD_TESTING OFF CACHE BOOL "Build tests")
+include(CTest)
+if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
