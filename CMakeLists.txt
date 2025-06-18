@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.12)
 
 project(Tadah.LAMMPS)
-set(TADAH "Tadah!")
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
 option(TADAH_ENABLE_FAST_MATH "Enable fast math optimizations" OFF)
@@ -56,7 +55,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "DEBUG"
     OR
     CMAKE_BUILD_TYPE STREQUAL "DEVELOP"
 )
-  message(STATUS "${TADAH} Build type:  ${CMAKE_BUILD_TYPE}.")
+message(STATUS "${PROJECT_NAME} Build type:  ${CMAKE_BUILD_TYPE}.")
 else()
   message(FATAL_ERROR "
   Selected build type is not supported: ${CMAKE_BUILD_TYPE}.
@@ -81,10 +80,10 @@ if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
 
     if(found_dir)
       set(${result_var} "${found_dir}" PARENT_SCOPE)
-      message("${TADAH} Develop build: Found directory: ${found_dir}")
+      message(STATUS "${PROJECT_NAME} Develop build: Found directory: ${found_dir}")
     else()
       set(${result_var} "" PARENT_SCOPE)
-      message("${TADAH} Develop build: Directory not found.")
+      message(STATUS "${PROJECT_NAME} Develop build: Directory not found.")
     endif()
   endfunction()
 
@@ -93,7 +92,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
 endif()
 
 include(FetchContent)
-if(DEFINED ENV{CI_COMMIT_REF_NAME})
+if(NOT DEFINED GIT_BRANCH AND DEFINED ENV{CI_COMMIT_REF_NAME})
   set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
 else()
   execute_process(
@@ -102,7 +101,7 @@ else()
     OUTPUT_VARIABLE GIT_BRANCH
     OUTPUT_STRIP_TRAILING_WHITESPACE)
 endif()
-message(STATUS "${TADAH}LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}")
+message(STATUS "${PROJECT_NAME} is using GIT_BRANCH:  ${GIT_BRANCH}")
 
 FetchContent_Declare(
     Tadah.MD
@@ -129,10 +128,10 @@ if(TADAH_MARCH_NATIVE)
   if(COMPILER_SUPPORTS_MARCH_NATIVE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   else()
-    message(STATUS "${TADAH} ...but -march=native is not supported")
+    message(STATUS "${PROJECT_NAME} ...but -march=native is not supported")
   endif()
 endif()
-message(STATUS "${TADAH} Build with -march=native in ${TADAH_MARCH_NATIVE}")
+message(STATUS "${PROJECT_NAME} Build with -march=native in ${TADAH_MARCH_NATIVE}")
 #########################################################################
 
 #########################################################################
@@ -147,7 +146,7 @@ else()
     add_compile_options(/fp:precise)
   endif()
 endif()
-message(STATUS "${TADAH}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
+message(STATUS "${PROJECT_NAME}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
 #########################################################################
 
 if(TADAH_BUILD_TESTS)
@@ -157,7 +156,7 @@ endif()
 
 message(STATUS "===================================================================")
 message(STATUS "                                                                   ")
-message(STATUS "${TADAH}.MD in now configured and ready for compilation.           ")
+message(STATUS "${PROJECT_NAME} in now configured and ready for compilation.       ")
 message(STATUS "                                                                   ")
 message(STATUS "--------------+----------------------------------------------------")
 message(STATUS "Command       |   Description                                      ")
