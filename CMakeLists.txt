@@ -1,109 +1,64 @@
 cmake_minimum_required(VERSION 3.12)
 
-project(Tadah.LAMMPS)
-set(TADAH "Tadah!")
+project(Tadah.LAMMPS LANGUAGES CXX)
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
 option(TADAH_ENABLE_FAST_MATH "Enable fast math optimizations" OFF)
 
-# Guard against in-source builds
+# 0. Guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
-  message(FATAL_ERROR "In-source builds not allowed. Please make a new directory (called a build directory) and run CMake from there. You may need to remove CMakeCache.txt and CMakeFiles dir. ")
+  message(FATAL_ERROR
+    "In-source builds are not allowed.\n"
+    "Create a separate build directory and run CMake from there.")
 endif()
 
+# 1. Global settings
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-set(CMAKE_CXX_FLAGS_DEBUG
-    "-g -O2 -fsanitize=address -Wall -Wpedantic -pedantic-errors -Wextra"
-    CACHE STRING
-    "Debug build."
-    FORCE)
-
-set(CMAKE_CXX_FLAGS_RELEASE
-    "-g -O3 -Wall"
-    CACHE STRING
-    "Release build."
-    FORCE)
-
-set(CMAKE_CXX_FLAGS_PROFILE
-    "-g -O3 -Wall -Wpedantic -Wextra -pg -fno-inline "
-    CACHE STRING
-    "Flags used by the C++ compiler during profile builds."
-    FORCE)
-
-set(CMAKE_CXX_FLAGS_DEVELOP
-    "-g -O3 -Wall -Wpedantic -Wextra"
-    CACHE STRING
-    "Release build."
-    FORCE)
-
-# Set default build type
-if(NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE Release)
+# default build type for single-config generators (Ninja/Make)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "" FORCE)
 endif()
 
-# Check is build supported
-string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
-if (CMAKE_BUILD_TYPE STREQUAL "DEBUG" 
-    OR
-    CMAKE_BUILD_TYPE STREQUAL "RELEASE"
-    OR
-    CMAKE_BUILD_TYPE STREQUAL "PROFILE"
-    OR
-    CMAKE_BUILD_TYPE STREQUAL "DEVELOP"
-)
-  message(STATUS "${TADAH} Build type:  ${CMAKE_BUILD_TYPE}.")
-else()
-  message(FATAL_ERROR "
-  Selected build type is not supported: ${CMAKE_BUILD_TYPE}.
-  Supported build types: Release, Debug, Profile"
-  )
+if(BUILD_SHARED_LIBS)
+  set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+
+  # Always full RPATH
+  # use, i.e. don't skip the full RPATH for the build tree
+  set(CMAKE_SKIP_BUILD_RPATH FALSE)
+
+  # when building, don't use the install RPATH already
+  # (but later on when installing)
+  set(CMAKE_BUILD_WITH_INSTALL_RPATH FALSE)
+
+  set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib")
+
+  # add the automatically determined parts of the RPATH
+  # which point to directories outside the build tree to the install RPATH
+  set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 endif()
 
-# Update the documentation string of CMAKE_BUILD_TYPE for GUIs
-set(CMAKE_BUILD_TYPE "${CMAKE_BUILD_TYPE}" CACHE STRING
-    "Choose the type of build, options are: None Debug Release Profile Develop."
-    FORCE)
-
-
-string(TOUPPER ${CMAKE_BUILD_TYPE} CMAKE_BUILD_TYPE)
-if (CMAKE_BUILD_TYPE STREQUAL "DEVELOP")
-  function(find_directory_case_insensitive target_name search_dir result_var)
-    execute_process(
-        COMMAND find "${search_dir}" -maxdepth 1 -type d -iname "${target_name}"
-        OUTPUT_VARIABLE found_dir
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-
-    if(found_dir)
-      set(${result_var} "${found_dir}" PARENT_SCOPE)
-      message("${TADAH} Develop build: Found directory: ${found_dir}")
-    else()
-      set(${result_var} "" PARENT_SCOPE)
-      message("${TADAH} Develop build: Directory not found.")
-    endif()
-  endfunction()
-
-  find_directory_case_insensitive("md" "$ENV{TADAH_PATH}" DEVELOP_MD_DIR)
-  set(FETCHCONTENT_SOURCE_DIR_TADAH.MD "${DEVELOP_MD_DIR}")
-endif()
-
+# 2. Bring in the shared compile/link options
 include(FetchContent)
-if(DEFINED ENV{CI_COMMIT_REF_NAME})
-  set(GIT_BRANCH "$ENV{CI_COMMIT_REF_NAME}")
-else()
-  execute_process(
-    COMMAND bash -c "git status | grep origin |sed -e 's/.*origin\\///' -e 's/[^a-zA-Z\/_-].*//'"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-    OUTPUT_VARIABLE GIT_BRANCH
-    OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT TARGET tadah::compile_options)
+  FetchContent_Declare (
+    tadah_cmake
+    GIT_REPOSITORY  https://git.ecdf.ed.ac.uk/tadah/cmake-tools.git
+    GIT_TAG         main
+  )
+  FetchContent_MakeAvailable(tadah_cmake)   # defines tadah::compile_options
 endif()
-message(STATUS "${TADAH}LAMMPS Using GIT_BRANCH:  ${GIT_BRANCH}")
 
+# (option) Developer builds -DTADAH_DEVELOP=ON
+tadah_use_local_module(Tadah.MD MD)  # FetchContent name + folder name
+
+# 3. Git branch information, for informational purposes 
+tadah_get_git_branch(GIT_BRANCH)
+message(STATUS "${PROJECT_NAME} is using GIT_BRANCH:  ${GIT_BRANCH}")
+
+#4. Fetch Tadah! modules
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
@@ -112,10 +67,12 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Tadah.MD)
 
 add_library(tadah.lammps STATIC src/lammps_tadah.cpp)
-target_include_directories(tadah.lammps PUBLIC include)
-target_link_libraries(tadah.lammps PUBLIC tadah.md)
-target_link_libraries(tadah.lammps PUBLIC tadah.core)
-target_link_libraries(tadah.lammps PUBLIC tadah.models)
+target_include_directories(tadah.lammps
+  PUBLIC
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tadah.lammps PUBLIC tadah::compile_options tadah.core tadah.models tadah.md)
 
 if (NOT TADAH_BUILD_DOCS_ONLY)
   find_package(LAPACK)
@@ -129,10 +86,10 @@ if(TADAH_MARCH_NATIVE)
   if(COMPILER_SUPPORTS_MARCH_NATIVE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   else()
-    message(STATUS "${TADAH} ...but -march=native is not supported")
+    message(STATUS "${PROJECT_NAME} ...but -march=native is not supported")
   endif()
 endif()
-message(STATUS "${TADAH} Build with -march=native in ${TADAH_MARCH_NATIVE}")
+message(STATUS "${PROJECT_NAME} Build with -march=native in ${TADAH_MARCH_NATIVE}")
 #########################################################################
 
 #########################################################################
@@ -147,17 +104,18 @@ else()
     add_compile_options(/fp:precise)
   endif()
 endif()
-message(STATUS "${TADAH}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
+message(STATUS "${PROJECT_NAME}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
 #########################################################################
 
-if(TADAH_BUILD_TESTS)
-  include(CTest) 
+set(BUILD_TESTING OFF CACHE BOOL "Build tests")
+include(CTest)
+if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
 message(STATUS "===================================================================")
 message(STATUS "                                                                   ")
-message(STATUS "${TADAH}.MD in now configured and ready for compilation.           ")
+message(STATUS "${PROJECT_NAME} in now configured and ready for compilation.       ")
 message(STATUS "                                                                   ")
 message(STATUS "--------------+----------------------------------------------------")
 message(STATUS "Command       |   Description                                      ")

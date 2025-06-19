@@ -1,11 +1,10 @@
 stages:
   - build_debug
-  - run_unit_tests
   - build_release
-  - test_tadah_lammps
+  - compile_lammps_with_tadah
 
 cache:
-    key: "$CI_PIPELINE_ID"
+    key: "build-cache-$CI_COMMIT_REF_SLUG"
     paths:
     - ${BUILD_DIR}
 
@@ -19,13 +18,8 @@ build_debug:
   stage: build_debug
   script:
     - cd ${DEBUG_DIR}
-    - cmake ../.. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DTADAH_BUILD_TESTS=ON
+    - cmake ../.. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DBUILD_TESTING=ON
     - make -j ${CPU_BUILD}
-
-run_unit_tests:
-  stage: run_unit_tests
-  script:
-    - cd ${DEBUG_DIR}
     - make test
     - cd ..; gcovr -e '.*tests.*|.*lib.*|.*ML-TADAH.*|build' -r .
   coverage: /^TOTAL.*\s+(\d+\%)$/
@@ -44,12 +38,12 @@ build_release_static:
     - cmake ../.. -DCMAKE_BUILD_TYPE=Release -DTADAH_ENABLE_OPENMP=ON -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH}
     - make -j ${CPU_BUILD}
 
-test_tadah_lammps:
-  stage: test_tadah_lammps
+compile_lammps_with_tadah:
+  stage: compile_lammps_with_tadah
   script:
     - mkdir -p ~/opt
     - git clone -b stable --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
-    - git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps
+    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps    
     - cd ~/opt/lammps/src
     - make -j10 serial
     - make lib-tadah.lammps
