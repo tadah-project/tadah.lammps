@@ -43,10 +43,7 @@ compile_lammps_with_tadah:
   script:
     - mkdir -p ~/opt
     - git clone -b stable --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
-    - git clone --depth 1 --single-branch \
-        -b "$CI_COMMIT_REF_NAME" \
-        https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git \
-        ~/opt/lammps/lib/tadah.lammps    
+    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps    
     - cd ~/opt/lammps/src
     - make -j10 serial
     - make lib-tadah.lammps
