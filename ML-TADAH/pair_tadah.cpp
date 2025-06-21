@@ -293,20 +293,20 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d fij = lt->model->fpredict(fd,lt->aeds.col(i));
 
-      f[i][0] += f_eam(0);
-      f[i][1] += f_eam(1);
-      f[i][2] += f_eam(2);
+      f[i][0] += fij(0);
+      f[i][1] += fij(1);
+      f[i][2] += fij(2);
 
       if (newton_pair || j < nlocal) {
-        f[j][0] -= f_eam(0);
-        f[j][1] -= f_eam(1);
-        f[j][2] -= f_eam(2);
+        f[j][0] -= fij(0);
+        f[j][1] -= fij(1);
+        f[j][2] -= fij(2);
       }
 
       if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
-                               0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
+                               0.0,0.0,fij(0),fij(1),fij(2),delij[0],delij[1],delij[2]);
     }
   }
 
@@ -380,22 +380,10 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
         lt->S.dmb->calc_rho(Zi,Zj,rij,rij_sq,delij,lt->rhos.col(i));
       }
     }
-  }
 
-  // compute AEFP for all eam-types
-  // for EAM the derivative of embedding energy at each atom
-  // is also computed here
-  for (ii = 0; ii < inum; ii++) {
-    i = ilist[ii];
-    // we have to scale 2b energy by 0.5
-    // we can't do it in the loop above because
-    // if dummy cutoff is used or d2_eam with dm_eam
-    // cutoff is ignored and that is the only way now to
-    // introduce factor into 2b aed.
-    // Hence we scale 2b part of descriptor by 0.5
-    // before MB aed is calculated
-    // lt->aeds.col(i)*=0.5;
-
+    // Compute B_i
+    // EAM computes the derivative of the embedding energy at each atom.
+    // ML descriptors compute equivalent dEi/dBi
     lt->S.dmb->calc_aed(lt->rhos.col(i), lt->aeds.col(i));
 
     if (lt->norm)
@@ -407,8 +395,8 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   }
 
   // communicate the derivative of the embedding function
-  if (comm_forward)
-    comm->forward_comm(this);
+  // if (comm_forward)
+  //   comm->forward_comm(this);
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -454,18 +442,18 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       if (lt->norm)
         lt->model->norm.normalise(fd);
 
-      tadah::core::Vec3d f_eam = lt->model->fpredict(fd,lt->aeds.col(i));
+      tadah::core::Vec3d fij = lt->model->fpredict(fd,lt->aeds.col(i));
 
-      f[i][0] += f_eam(0);
-      f[i][1] += f_eam(1);
-      f[i][2] += f_eam(2);
+      f[i][0] += fij(0);
+      f[i][1] += fij(1);
+      f[i][2] += fij(2);
 
-      f[j][0] -= f_eam(0);
-      f[j][1] -= f_eam(1);
-      f[j][2] -= f_eam(2);
+      f[j][0] -= fij(0);
+      f[j][1] -= fij(1);
+      f[j][2] -= fij(2);
 
       if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
-                               0.0,0.0,f_eam(0),f_eam(1),f_eam(2),delij[0],delij[1],delij[2]);
+                               0.0,0.0,fij(0),fij(1),fij(2),delij[0],delij[1],delij[2]);
     }
   }
 
@@ -885,7 +873,8 @@ void PairTadah::init_style()
   } else {
     if (force->newton_pair == 0)
       error->all(FLERR,"Pair style tadah requires newton pair on for this potential.");
-    neighbor->add_request(this, NeighConst::REQ_FULL);
+    // neighbor->add_request(this, NeighConst::REQ_FULL);
+    neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_GHOST);
   }
 }
 double PairTadah::init_one(int i, int j) {
