@@ -4,7 +4,6 @@ DBFILE path/to/file3 path/to/file4
 
 INIT2B true
 INIT2B true
-INIT3B false
 
 RCUT2B 5.5
 

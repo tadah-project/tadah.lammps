@@ -6,14 +6,13 @@ DIMER     false     0     false
 EWEIGHT      1.0
 FWEIGHT      1.0
 INIT2B      true
-INIT3B      false
 INITMB      false
 LAMBDA      0
 MODEL     M_BLR     BF_Linear
 NMEAN     1     194.0239012     198.413198     167.8651188     8.242704556
 NORM      true
 NSTDEV     0     2.79425471     2.914508228     1.43784523     0.3225202259
-OUTPREC      10
+NUMERIC      10
 RCTYPE2B      Cut_Cos
 RCUT2B      5.3
 SGRID2B     -2     4     0.1     1.0

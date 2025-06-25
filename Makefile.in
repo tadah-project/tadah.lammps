@@ -1,5 +1,8 @@
 TADAH_MD_CONFIGURED=true
 ###############################################################################
+# 
+# WARNING: This compilation method is depreciated. Use CMake instead...
+#
 # To compile Tadah.MD just type 'make' inside the lib root directory.
 ###############################################################################
 CC:= g++
@@ -9,7 +12,6 @@ CXXFLAGS:= -std=c++11 -g -O3 -Wall -fPIC -Wpedantic -pedantic-errors -Wextra
 ROOT_DIR:=$(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 BUILD_DIR:=$(ROOT_DIR)/build
 
-INC=-I$(ROOT_DIR)/build/CORE/external/cmrc-master/
 INC+=-I$(ROOT_DIR)/build/CORE/external/toml11/
 INC+=-I$(ROOT_DIR)/build/CORE/include
 INC+=-I$(ROOT_DIR)/build/MODELS/include
