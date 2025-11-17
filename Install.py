@@ -12,7 +12,7 @@ Issue below command from the lammps/src directory:
 """
 
 from __future__ import print_function
-import sys, os, subprocess
+import sys, os, subprocess, shutil
 from argparse import ArgumentParser
 
 sys.path.append('..')
@@ -79,10 +79,11 @@ else:
 # Copy ML-TADAH to lammps src
 try:
     print("Coping ML-TADAH directory to LAMMPS src directory...")
-    cwd=os.getcwd()
-    from distutils.dir_util import copy_tree
-    copy_tree(os.path.join(cwd,"ML-TADAH"), os.path.join(cwd,"../../src/ML-TADAH"))
+    shutil.copytree("ML-TADAH", "../../src/ML-TADAH")
     print("Done")
 except:
-    print("Could not copy ML-TADAH.")
+    print("Could not copy ML-TADAH, please:")
+    print("1) Verify the python module 'shutil' is available")
+    print("2) That tadah.lammps is in lammps/lib")
     sys.exit(1)
+
