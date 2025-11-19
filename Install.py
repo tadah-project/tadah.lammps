@@ -76,9 +76,14 @@ if os.path.exists("%s/lib%s.a" % (os.path.join(cwd,build_dir),lib)):
 else:
   sys.exit("Build of lib/%s was NOT successful" % (lib, lib))
 
+# Verifying that ML-TADAH is not already in the src directory
+if "ML-TADAH" in os.listdir("../../src/"):
+    print("Error. ML-TADAH already exists as a directory within the /src/ folder.")
+    print("Please remove ML-TADAH from ../../src using rm -r ../../src/ML-TADAH and try again.")
+    sys.exit(1)
 # Copy ML-TADAH to lammps src
 try:
-    print("Coping ML-TADAH directory to LAMMPS src directory...")
+    print("Copying ML-TADAH directory to LAMMPS src directory...")
     shutil.copytree("ML-TADAH", "../../src/ML-TADAH")
     print("Done")
 except:
