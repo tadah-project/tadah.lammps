@@ -89,6 +89,6 @@ try:
 except:
     print("Could not copy ML-TADAH, please:")
     print("1) Verify the python module 'shutil' is available")
-    print("2) That tadah.lammps is in lammps/lib")
+    print("2) Verify that tadah.lammps is in lammps/lib")
     sys.exit(1)
 
