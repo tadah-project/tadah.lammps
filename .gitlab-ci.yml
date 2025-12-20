@@ -49,3 +49,26 @@ compile_lammps_with_tadah:
     - make lib-tadah.lammps
     - make yes-ml-tadah
     - make -j10 serial
+
+# test the CMake integration hook (CMAKE_PROJECT_INCLUDE + add_subdirectory + style_pair.h patch)
+compile_lammps_with_tadah_cmake_integration:
+  stage: compile_lammps_with_tadah
+  script:
+    - mkdir -p ~/opt
+    - rm -rf ~/opt/lammps_cmake ~/opt/Tadah.LAMMPS ~/opt/lammps_cmake_build
+    - git clone -b stable --depth 1 https://github.com/lammps/lammps.git ~/opt/lammps_cmake
+    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/Tadah.LAMMPS
+
+    # Configure LAMMPS CMake build using the Tadah integration hook
+    - cmake -S ~/opt/lammps_cmake/cmake -B ~/opt/lammps_cmake_build
+        -DCMAKE_BUILD_TYPE=Release
+        -DPKG_ML-TADAH=ON
+        -DCMAKE_PROJECT_INCLUDE=~/opt/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake
+        -DTADAH_LAMMPS_SOURCE_DIR=~/opt/Tadah.LAMMPS
+        -DTADAH_LAMMPS_QUIET=ON
+
+    # Build
+    - cmake --build ~/opt/lammps_cmake_build --parallel ${CPU_BUILD}
+
+    # Very basic smoke test that the style got registered (help output should mention "tadah")
+    - (cd ~/opt/lammps_cmake_build && ./lmp -h | grep -i tadah)
