@@ -4,6 +4,20 @@ project(Tadah.LAMMPS LANGUAGES CXX)
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
 option(TADAH_ENABLE_FAST_MATH "Enable fast math optimizations" OFF)
+option(TADAH_LAMMPS_QUIET "Reduce configure output when used as a dependency" OFF)
+option(TADAH_LAMMPS_QUIET "Reduce configure output when used as a dependency" OFF)
+
+function(tadah_lammps_status)
+  if(NOT TADAH_LAMMPS_QUIET)
+    message(STATUS "${ARGV}")
+  endif()
+endfunction()
+
+# True when this project is the top-level build (standalone)
+set(TADAH_LAMMPS_STANDALONE OFF)
+if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
+  set(TADAH_LAMMPS_STANDALONE ON)
+endif()
 
 # 0. Guard against in-source builds
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
@@ -13,13 +27,17 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 endif()
 
 # 1. Global settings
-set(CMAKE_CXX_STANDARD 11)
+if(TADAH_LAMMPS_STANDALONE AND NOT DEFINED CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # default build type for single-config generators (Ninja/Make)
-if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
-  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE)
+if(TADAH_LAMMPS_STANDALONE)
+  if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE)
+  endif()
 endif()
 
 if(BUILD_SHARED_LIBS)
@@ -56,7 +74,7 @@ tadah_use_local_module(Tadah.MD MD)  # FetchContent name + folder name
 
 # 3. Git branch information, for informational purposes 
 tadah_get_git_branch(GIT_BRANCH)
-message(STATUS "${PROJECT_NAME} is using GIT_BRANCH:  ${GIT_BRANCH}")
+tadah_lammps_status("${PROJECT_NAME} is using GIT_BRANCH:  ${GIT_BRANCH}")
 
 #4. Fetch Tadah! modules
 FetchContent_Declare(
@@ -86,10 +104,10 @@ if(TADAH_MARCH_NATIVE)
   if(COMPILER_SUPPORTS_MARCH_NATIVE)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=native")
   else()
-    message(STATUS "${PROJECT_NAME} ...but -march=native is not supported")
+    tadah_lammps_status("${PROJECT_NAME} ...but -march=native is not supported")
   endif()
 endif()
-message(STATUS "${PROJECT_NAME} Build with -march=native in ${TADAH_MARCH_NATIVE}")
+tadah_lammps_status("${PROJECT_NAME} Build with -march=native in ${TADAH_MARCH_NATIVE}")
 #########################################################################
 
 #########################################################################
@@ -104,7 +122,7 @@ else()
     add_compile_options(/fp:precise)
   endif()
 endif()
-message(STATUS "${PROJECT_NAME}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
+tadah_lammps_status("${PROJECT_NAME}: Build with fast math optimisation is ${TADAH_ENABLE_FAST_MATH}")
 #########################################################################
 
 set(BUILD_TESTING OFF CACHE BOOL "Build tests")
@@ -113,16 +131,16 @@ if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
-message(STATUS "===================================================================")
-message(STATUS "                                                                   ")
-message(STATUS "${PROJECT_NAME} in now configured and ready for compilation.       ")
-message(STATUS "                                                                   ")
-message(STATUS "--------------+----------------------------------------------------")
-message(STATUS "Command       |   Description                                      ")
-message(STATUS "--------------+----------------------------------------------------")
-message(STATUS "              |                                                    ")
-message(STATUS "make          |   Compile                                          ")
-message(STATUS "              |                                                    ")
-message(STATUS "make test     |   Run testing framework                            ")
-message(STATUS "              |                                                    ")
-message(STATUS "===================================================================")
+tadah_lammps_status("===================================================================")
+tadah_lammps_status("                                                                   ")
+tadah_lammps_status("${PROJECT_NAME} in now configured and ready for compilation.       ")
+tadah_lammps_status("                                                                   ")
+tadah_lammps_status("--------------+----------------------------------------------------")
+tadah_lammps_status("Command       |   Description                                      ")
+tadah_lammps_status("--------------+----------------------------------------------------")
+tadah_lammps_status("              |                                                    ")
+tadah_lammps_status("make          |   Compile                                          ")
+tadah_lammps_status("              |                                                    ")
+tadah_lammps_status("make test     |   Run testing framework                            ")
+tadah_lammps_status("              |                                                    ")
+tadah_lammps_status("===================================================================")

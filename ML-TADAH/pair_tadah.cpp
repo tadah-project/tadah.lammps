@@ -92,7 +92,6 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
     int Zi = lt->Z[type[i]-1];
     for (jj = 0; jj < jnum; jj++) {
-      aed.set_zero();
       j = jlist[jj];
       j &= NEIGHMASK;
       delij[0] = xtmp - x[j][0];
@@ -101,6 +100,9 @@ void PairTadah::compute_2b(int eflag, int vflag)
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
 
       if (rij_sq > lt->cutoff_max_sq) continue;
+
+      aed.set_zero();
+      fd.set_zero();  // Needed b/c _mJoin may skip parts of the vector
 
       int Zj = lt->Z[type[j]-1];
       double rij = sqrt(rij_sq);
@@ -259,7 +261,6 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
     jnum = numneigh[i];
     int Zi = lt->Z[type[i]-1];
     for (jj = 0; jj < jnum; jj++) {
-      fd.set_zero();
       j = jlist[jj];
       j &= NEIGHMASK;
       delij[0] = xtmp - x[j][0];
@@ -267,6 +268,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       delij[2] = ztmp - x[j][2];
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
       if (rij_sq > lt->cutoff_max_sq) continue;
+      fd.set_zero();  // Needed b/c _mJoin may skip parts of the vector
       double rij = sqrt(rij_sq);
       int Zj = lt->Z[type[j]-1];
 
@@ -409,7 +411,6 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     jnum = numneigh[i];
     int Zi = lt->Z[type[i]-1];
     for (jj = 0; jj < jnum; jj++) {
-      fd.set_zero();
       j = jlist[jj];
       j &= NEIGHMASK;
       delij[0] = xtmp - x[j][0];
@@ -417,6 +418,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       delij[2] = ztmp - x[j][2];
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
       if (rij_sq > lt->cutoff_max_sq) continue;
+      fd.set_zero();  // Needed b/c _mJoin may skip parts of the vector
       double rij = sqrt(rij_sq);
       int Zj = lt->Z[type[j]-1];
 
