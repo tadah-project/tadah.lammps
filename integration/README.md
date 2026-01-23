@@ -135,7 +135,7 @@ Format:
 Latest-only behavior:
 - the script uses this list to determine which header(s) to include into style_pair.h
 - the Class field is currently not used by the script, but is kept for future expansion
-- if header is omitted it defaults to: pair_<style>.h
+- if header is omitted it defaults to: pair_\<style\>.h
 
 Default:
 
