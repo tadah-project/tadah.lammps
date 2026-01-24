@@ -1,180 +1,202 @@
-# Tadah ML-TADAH integration for LAMMPS (no LAMMPS file edits)
+# ML‑TADAH CMake integration for LAMMPS (via `CMAKE_PROJECT_INCLUDE`)
 
-This integration enables the ML-TADAH pair style in LAMMPS using CMake injection
-via CMAKE_PROJECT_INCLUDE.
+This directory contains the **CMake “injection” hook** that enables **ML‑TADAH** in **LAMMPS** as a **pair style**:
 
-It requires no edits to the LAMMPS source tree and does not require copying
-ML-TADAH into lammps/src. Instead, ML-TADAH sources are compiled directly from
-the Tadah.LAMMPS repository into the LAMMPS build.
+- `pair_style tadah`
+
+The integration compiles the ML‑TADAH sources **directly from your Tadah.LAMMPS checkout into the LAMMPS build**, without copying files into `lammps/src` and without editing the LAMMPS source tree.
+
+> **Note:** ML‑TADAH / Tadah.LAMMPS is **not part of the official LAMMPS distribution**. You must clone Tadah.LAMMPS yourself and enable it in your LAMMPS CMake configure step.
+
+Extended documentation:
+https://tadah.readthedocs.io/
+
+LAMMPS CMake build documentation:
+https://docs.lammps.org/Build_cmake.html
+
+---
 
 ## Requirements
 
-- CMake >= 3.20
-- A working C++ toolchain for LAMMPS
-- A local checkout of Tadah.LAMMPS (recommended workflow)
-- Tadah.LAMMPS must NOT force CMAKE_CXX_STANDARD=11 globally when used as a dependency
-  (LAMMPS requires C++17)
+- **CMake ≥ 3.20**
+- A working **C++17** toolchain suitable for building LAMMPS
 
-## Recommended workflow (local Tadah.LAMMPS checkout)
+---
 
-1. Have a local Tadah.LAMMPS checkout:
+## Quick start (recommended workflow)
 
-   /path/to/Tadah.LAMMPS
+### 1) Clone Tadah.LAMMPS (somewhere outside LAMMPS)
 
-   The integration scripts are inside:
+```bash
+git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git /path/to/Tadah.LAMMPS
+```
 
-   /path/to/Tadah.LAMMPS/integration/
+### 2) Configure LAMMPS and add the ML‑TADAH integration options
 
-2. Configure LAMMPS (from the LAMMPS root directory):
+From the **LAMMPS root directory**, run your usual LAMMPS configure command **and add** these options to it:
 
-```sh
+```bash
+  -DPKG_ML-TADAH=ON \
+  -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
+  -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
+```
+
+Minimal example:
+
+```bash
 cmake -S cmake -B build \
   -DPKG_ML-TADAH=ON \
   -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
   -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
 ```
 
-3. Build:
+Optional: select a Tadah.LAMMPS branch (default is `main`):
 
-```sh
+```bash
+  -DTADAH_GIT_BRANCH=develop
+```
+
+### 3) Build
+
+```bash
 cmake --build build
 ```
 
-## How it works (latest LAMMPS behavior)
+Parallel build is supported (commonly on Linux):
 
-- LAMMPS generates build/styles/style_pair.h as an include-only file that lists:
-  #include "pair_*.h"
-- This integration appends one or more lines like:
-  #include "pair_tadah.h"
-  to that generated file.
-- Your pair_tadah.h contains:
-  #ifdef PAIR_CLASS
-  PairStyle(tadah,PairTadah)
-  #else
-  ...
-  #endif
-  so the style is registered automatically when the header is included.
-- ML-TADAH/*.cpp from Tadah.LAMMPS is compiled directly into the lammps target.
+```bash
+cmake --build build --parallel $(nproc)
+```
 
-## Script options (all available options)
+Result: the LAMMPS binary built from this build directory includes **ML‑TADAH** and provides `pair_style tadah`.
 
-All options below are passed to the LAMMPS CMake configure command (cmake -S cmake -B build ...).
+---
 
-### Option 1: PKG_ML-TADAH (ON/OFF)
+## How it works (high level)
 
-Enable or disable the integration.
+- LAMMPS generates `build/styles/style_pair.h` as an include-only file that lists pair style headers (e.g. `#include "pair_*.h"`).
+- This integration appends one or more include lines (e.g. `#include "pair_tadah.h"`) to that generated file.
+- `pair_tadah.h` registers the style via the standard LAMMPS mechanism:
+  - `PairStyle(tadah,PairTadah)` (inside `#ifdef PAIR_CLASS ... #else ... #endif`)
+- The ML‑TADAH sources (`ML-TADAH/*.cpp`) from the Tadah.LAMMPS checkout are compiled directly into the LAMMPS target.
 
-Example:
+---
 
-```sh
+## CMake options supported by the integration
+
+All options below are passed to your **LAMMPS CMake configure** command (i.e. the command you run from the LAMMPS root directory, such as `cmake -S cmake -B build ...`).
+
+### 1) `PKG_ML-TADAH` (ON/OFF)
+
+Enables the ML‑TADAH package during the LAMMPS configure.
+
+```bash
 -DPKG_ML-TADAH=ON
 ```
 
-Disable:
+### 2) `CMAKE_PROJECT_INCLUDE` (path) — required
 
-```sh
--DPKG_ML-TADAH=OFF
-```
+CMake hook used by LAMMPS to inject this integration into the configure run.
 
-### Option 2: CMAKE_PROJECT_INCLUDE (path)
-
-CMake hook that injects the integration into the LAMMPS configure run.
-
-Required when using this integration.
-
-Example:
-
-```sh
+```bash
 -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake
 ```
 
-### Option 3: TADAH_LAMMPS_SOURCE_DIR (path)
+### 3) `TADAH_LAMMPS_SOURCE_DIR` (path) — required
 
-Path to a local checkout of Tadah.LAMMPS.
+Path to your local Tadah.LAMMPS checkout.
 
-This is required for the recommended workflow (latest-only integration). If this is
-empty, the current scripts will error out (by design, to avoid unexpected behavior).
-
-Example:
-
-```sh
+```bash
 -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
 ```
 
-### Option 4: TADAH_LAMMPS_QUIET (ON/OFF)
+### 4) `TADAH_GIT_BRANCH` (`main` | `develop`)
 
-Request reduced configure output from Tadah.LAMMPS when it is built as a dependency.
+Selects which Tadah.LAMMPS branch to use (default: `main`).
 
-Note: Tadah.LAMMPS must define and honor this option in its top-level CMakeLists.txt
-for it to have any effect.
+```bash
+-DTADAH_GIT_BRANCH=main
+# or
+-DTADAH_GIT_BRANCH=develop
+```
 
-Default in the integration scripts: ON
+### 5) `TADAH_LAMMPS_QUIET` (ON/OFF)
 
-Examples:
+Controls the verbosity of Tadah.LAMMPS when it is configured/built as part of the LAMMPS build.
 
-Quiet (recommended):
+Default (in the integration scripts): `ON`
 
-```sh
+```bash
 -DTADAH_LAMMPS_QUIET=ON
 ```
 
-Verbose:
+For debugging:
 
-```sh
+```bash
 -DTADAH_LAMMPS_QUIET=OFF
 ```
 
-### Option 5: TADAH_LAMMPS_PAIR_STYLES (list)
+### 6) `TADAH_LAMMPS_PAIR_STYLES` (list)
 
 Semicolon-separated list of pair styles to register.
 
 Format:
+- `style:Class[:header]`
 
-- style:Class[:header]
-
-Latest-only behavior:
-- the script uses this list to determine which header(s) to include into style_pair.h
-- the Class field is currently not used by the script, but is kept for future expansion
-- if header is omitted it defaults to: pair_\<style\>.h
+Behavior:
+- the integration uses this list to decide which header(s) to include into `style_pair.h`
+- `Class` is currently retained for future expansion
+- if `header` is omitted it defaults to `pair_\<style\>.h`
 
 Default:
-
-- tadah:PairTadah
+- `tadah:PairTadah`
 
 Examples:
 
-A) Default (single style):
+Default:
 
-```sh
+```bash
 -DTADAH_LAMMPS_PAIR_STYLES="tadah:PairTadah"
 ```
 
-B) Explicit header name:
+Explicit header name:
 
-```sh
+```bash
 -DTADAH_LAMMPS_PAIR_STYLES="tadah:PairTadah:pair_tadah.h"
 ```
 
-C) Multiple styles (future use):
+Multiple styles (future use):
 
-```sh
+```bash
 -DTADAH_LAMMPS_PAIR_STYLES="tadah:PairTadah;other:PairOther:pair_other.h"
 ```
 
+---
+
 ## Full example command lines
 
-### Minimal recommended command
+### Minimal recommended
 
-```sh
+```bash
 cmake -S cmake -B build \
   -DPKG_ML-TADAH=ON \
   -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
   -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
 ```
 
+### Select the `develop` branch
+
+```bash
+cmake -S cmake -B build \
+  -DPKG_ML-TADAH=ON \
+  -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
+  -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS \
+  -DTADAH_GIT_BRANCH=develop
+```
+
 ### Verbose Tadah.LAMMPS output (debugging)
 
-```sh
+```bash
 cmake -S cmake -B build \
   -DPKG_ML-TADAH=ON \
   -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
@@ -182,9 +204,9 @@ cmake -S cmake -B build \
   -DTADAH_LAMMPS_QUIET=OFF
 ```
 
-### Custom style list example
+### Custom style list
 
-```sh
+```bash
 cmake -S cmake -B build \
   -DPKG_ML-TADAH=ON \
   -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \

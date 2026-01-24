@@ -1,60 +1,134 @@
-# Tadah!LAMMPS
+# ML‑TADAH for LAMMPS (Tadah.LAMMPS)
 
-This repository provides:
+This repository adds **ML‑TADAH** to **LAMMPS** as a **pair style** (`pair_style tadah`) for running interatomic potentials developed with **Tadah!MLIP**.
 
-- a C++ library for LAMMPS: `tadah.lammps`
-- a LAMMPS pair style (plugin sources): `ML-TADAH` (`pair_style tadah`)
+> **Note:** ML‑TADAH / Tadah.LAMMPS is **not part of the official LAMMPS distribution**. You must clone this repository yourself and enable it in your LAMMPS build.
 
-It is used to run interatomic potentials developed with Tadah!MLIP.
+Documentation (recommended starting point, incl. extended instructions):
+https://tadah.readthedocs.io/
 
-Documentation:
-[https://tadah.readthedocs.io/](https://tadah.readthedocs.io/)
+---
 
-## Build with CMake (preferred)
+## Installation overview
 
-This is the recommended way. It does not require editing any LAMMPS files and does not require copying `ML-TADAH` into `lammps/src`.
+There are two supported ways to build LAMMPS with ML‑TADAH:
 
-1. Clone Tadah!LAMMPS anywhere (example):
-   ```bash
-   git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git /path/to/Tadah.LAMMPS
-   ```
+1. **CMake build with LAMMPS (recommended)**
+2. **Traditional make-based build with LAMMPS (deprecated)**
 
-2. Configure LAMMPS with the integration hook (from the LAMMPS root directory):
-   ```bash
-   cmake -S cmake -B build \
-     -DPKG_ML-TADAH=ON \
-     -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
-     -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
-   ```
+In both cases, you first **clone Tadah.LAMMPS** (this repository), since it is not shipped with LAMMPS.
 
-3. Build:
-   ```bash
-   cmake --build build --parallel 10
-   ```
+For general LAMMPS build options and prerequisites, see:
+https://docs.lammps.org/Build_cmake.html
 
-Result: the LAMMPS binary will include `pair_style tadah`.
+---
 
-## Traditional make-based build (supported, but CMake is preferred)
+## 1) Build with CMake (recommended)
 
-If you must use the classic make-based workflow, follow the LAMMPS "Build extras" docs:
+### Step 1 — Clone Tadah.LAMMPS
+
+Clone this repository anywhere you like:
+
+```bash
+git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git /path/to/Tadah.LAMMPS
+```
+
+Optional: choose the Tadah.LAMMPS branch to use when configuring (default is `main`):
+
+- `-DTADAH_GIT_BRANCH=main` (default)
+- `-DTADAH_GIT_BRANCH=develop`
+
+You can also `git checkout develop` in `/path/to/Tadah.LAMMPS` if you prefer managing the branch directly.
+
+---
+
+### Step 2 — Configure LAMMPS and enable ML‑TADAH
+
+From the **LAMMPS root directory**, run your usual LAMMPS CMake configure command **and add** the ML‑TADAH integration options below **to that command**:
+
+```bash
+  -DPKG_ML-TADAH=ON \
+  -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
+  -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
+```
+
+Those three options are the "integration hook": they enable the `ML-TADAH` package and tell LAMMPS where to find the Tadah.LAMMPS sources.
+
+#### Example A: minimal LAMMPS configure + ML‑TADAH
+Run from the LAMMPS root directory:
+```bash
+cmake -S cmake -B build \
+  -DPKG_ML-TADAH=ON \
+  -DCMAKE_PROJECT_INCLUDE=/path/to/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
+  -DTADAH_LAMMPS_SOURCE_DIR=/path/to/Tadah.LAMMPS
+```
+
+#### Example B: use the LAMMPS GCC preset + build a serial binary + ML‑TADAH
+
+This example uses the LAMMPS preset file `lammps/cmake/presets/gcc.cmake`, enables ML‑TADAH, selects the Tadah branch `develop`, and sets the LAMMPS machine target to `serial`:
+
+```bash
+cmake -C cmake/presets/gcc.cmake -S cmake -B build \
+  -DPKG_ML-TADAH=ON \
+  -DCMAKE_PROJECT_INCLUDE=/home/s1351949/PROJECTS/TADAH/Tadah.LAMMPS/integration/TadahLAMMPSProjectInclude.cmake \
+  -DTADAH_LAMMPS_SOURCE_DIR=/home/s1351949/PROJECTS/TADAH/Tadah.LAMMPS \
+  -DTADAH_GIT_BRANCH=develop \
+  -DLAMMPS_MACHINE=serial
+```
+
+---
+
+### Step 3 — Build
+
+```bash
+cmake --build build
+```
+
+Parallel builds are supported; on Linux a common choice is:
+
+```bash
+cmake --build build --parallel $(nproc)
+```
+
+Result: the resulting LAMMPS binary includes **ML‑TADAH** and provides `pair_style tadah`.
+
+---
+
+## 2) Traditional make-based build (deprecated)
+
+This follows the classic LAMMPS `make` workflow. LAMMPS documentation for building “extras”:
 https://docs.lammps.org/Build_extras.html
 
-Typical steps:
+### Step 1 — Clone Tadah.LAMMPS into `lammps/lib`
 
-1. Clone this repository into `lammps/lib` (directory name should be `tadah.lammps`):
-   ```bash
-   cd /path/to/lammps/lib
-   git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git
-   ```
+From your LAMMPS source tree:
 
-2. Build and enable the package from `lammps/src`:
-   ```bash
-   cd /path/to/lammps/src
-   make lib-tadah.lammps
-   make yes-ml-tadah
-   make serial
-   ```
+```bash
+cd /path/to/lammps/lib
+git clone https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git tadah.lammps
+```
 
-Notes:
-- `make serial` builds a non-MPI binary; use the appropriate make target for MPI/OpenMP on your system.
-- The CMake workflow above is preferred because it avoids manual file copying and is easier to reproduce.
+(Optionally select a branch, e.g. `develop`, if desired.)
+
+### Step 2 — Build the library and enable the ML‑TADAH package
+
+```bash
+cd /path/to/lammps/src
+make lib-tadah.lammps
+make yes-ml-tadah
+make serial
+```
+
+Choose the appropriate LAMMPS make target for your system (MPI/OpenMP, etc.) instead of `serial` if needed.
+
+---
+
+## What’s in this repository?
+
+- **LAMMPS pair style sources**: **ML‑TADAH** (`pair_style tadah`)
+- Supporting **C++ library** used by the integration: `tadah.lammps`
+- CMake integration hook for LAMMPS:
+  `integration/TadahLAMMPSProjectInclude.cmake`
+
+For usage, examples, and troubleshooting, see:
+https://tadah.readthedocs.io/

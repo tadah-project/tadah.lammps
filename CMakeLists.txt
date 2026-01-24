@@ -72,15 +72,15 @@ endif()
 # (option) Developer builds -DTADAH_DEVELOP=ON
 tadah_use_local_module(Tadah.MD MD)  # FetchContent name + folder name
 
-# 3. Git branch information, for informational purposes 
-tadah_get_git_branch(GIT_BRANCH)
-tadah_lammps_status("${PROJECT_NAME} is using GIT_BRANCH:  ${GIT_BRANCH}")
+# 3. Git branch information
+tadah_get_git_branch(TADAH_GIT_BRANCH)
+tadah_lammps_status("${PROJECT_NAME} is using TADAH_GIT_BRANCH:  ${TADAH_GIT_BRANCH}")
 
 #4. Fetch Tadah! modules
 FetchContent_Declare(
     Tadah.MD
     GIT_REPOSITORY https://git.ecdf.ed.ac.uk/tadah/md.git
-    GIT_TAG ${GIT_BRANCH}
+    GIT_TAG ${TADAH_GIT_BRANCH}
 )
 FetchContent_MakeAvailable(Tadah.MD)
 
