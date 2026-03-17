@@ -296,7 +296,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
         lt->S.d2b->calc_aed(Zi,Zj,rij,rij_sq,lt->aeds.col(i),0.5);
 
         if (newton_pair || j < nlocal) {
-          lt->S.d2b->calc_aed(Zi,Zj,rij,rij_sq,lt->aeds.col(j),0.5);
+          lt->S.d2b->calc_aed(Zj,Zi,rij,rij_sq,lt->aeds.col(j),0.5);
         }
       }
 
