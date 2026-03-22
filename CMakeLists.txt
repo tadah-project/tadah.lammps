@@ -4,6 +4,7 @@ project(Tadah.LAMMPS LANGUAGES CXX)
 
 option(TADAH_MARCH_NATIVE "Build with -march=native" OFF)
 option(TADAH_ENABLE_FAST_MATH "Enable fast math optimizations" OFF)
+option(TADAH_ENABLE_ASAN "Enable AddressSanitizer (-fsanitize=address -fno-omit-frame-pointer)" OFF)
 option(TADAH_LAMMPS_QUIET "Reduce configure output when used as a dependency" OFF)
 option(TADAH_LAMMPS_QUIET "Reduce configure output when used as a dependency" OFF)
 
@@ -91,6 +92,11 @@ target_include_directories(tadah.lammps
   $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(tadah.lammps PUBLIC tadah::compile_options tadah.core tadah.models tadah.md)
+
+if(TADAH_ENABLE_ASAN)
+  target_compile_options(tadah.lammps PUBLIC -fsanitize=address -fno-omit-frame-pointer -g)
+  target_link_libraries(tadah.lammps PUBLIC -fsanitize=address)
+endif()
 
 if (NOT TADAH_BUILD_DOCS_ONLY)
   find_package(LAPACK)
