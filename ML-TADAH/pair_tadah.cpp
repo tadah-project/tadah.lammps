@@ -125,13 +125,13 @@ void PairTadah::compute_2b(int eflag, int vflag)
                            0.0,fpair,delij[0],delij[1],delij[2]);
     }
 
-    // TODO reconsider this
-    aed.set_zero();
-    if (lt->bias)
-      aed(0) = 1.0;
-    ei = lt->model->epredict(aed);   // This is to get constant shift in E
-    if (eflag_atom) eatom[i] += ei;
-    if (eflag_global) eng_vdwl += ei;
+    // Per-species intercept: precomputed in LammpsTadah::initialize().
+    // bias_per_atom_type[type-1] is 0 when bias=0, NULL slots, or unmapped Z.
+    if (lt->bias > 0) {
+      const double ei_bias = lt->bias_per_atom_type[type[i]-1];
+      if (eflag_atom)   eatom[i]  += ei_bias;
+      if (eflag_global) eng_vdwl  += ei_bias;
+    }
   }
 
   if (vflag_fdotr)  virial_fdotr_compute();
@@ -171,8 +171,11 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   lt->rhos.set_zero();
   lt->aeds.set_zero();
 
-  if (lt->bias)
-    for (size_t n=0; n<lt->aeds.cols(); ++n) lt->aeds(0,n) = 1.0;
+  if (lt->bias > 0)
+    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+      const int k = lt->species_intercept_idx_per_type[type[n]-1];
+      if (k >= 0) lt->aeds(k, n) = 1.0;
+    }
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -349,8 +352,11 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
-  if (lt->bias) {
-    for (size_t n=0; n<lt->aeds.cols(); ++n) lt->aeds(0,n) = 1.0;
+  if (lt->bias > 0) {
+    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+      const int k = lt->species_intercept_idx_per_type[type[n]-1];
+      if (k >= 0) lt->aeds(k, n) = 1.0;
+    }
   }
 
   for (ii = 0; ii < inum; ii++) {
@@ -653,8 +659,11 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         lt->rhos.set_zero();
       }
       lt->aeds.set_zero();
-      if (lt->bias)
-        for (size_t n=0; n<lt->aeds.cols(); ++n )lt->aeds(0,n) = 1.0;
+      if (lt->bias > 0)
+        for (size_t n=0; n<lt->aeds.cols(); ++n ) {
+          const int k = lt->species_intercept_idx_per_type[type[n]-1];
+          if (k >= 0) lt->aeds(k, n) = 1.0;
+        }
 
       // Compute remaining 3 distances
       for (int n=3; n<6; ++n) {

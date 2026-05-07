@@ -59,6 +59,13 @@ public:
 
     std::vector<int> Z;
 
+    // Per-LAMMPS-atom-type lookup populated in initialize() once weights are
+    // loaded. With per-species BIAS, every atom of a given type contributes a
+    // fixed `bias_per_atom_type[type-1]` constant to its energy; the column
+    // index for that species is `species_intercept_idx_per_type[type-1]`.
+    std::vector<double> bias_per_atom_type;
+    std::vector<int>    species_intercept_idx_per_type;
+
     /* ------------ large sub-objects -------- */
     models::DC_Selector                         S;
     std::unique_ptr<models::Function_Base>      fb;
