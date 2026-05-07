@@ -30,6 +30,8 @@ See the README file in the top-level LAMMPS directory.
 #include "neigh_list.h"
 #include "neigh_request.h"
 
+#include <tadah/core/blueprint_parser.h>
+
 #include <cmath>
 #include <cstring>
 
@@ -806,6 +808,12 @@ void PairTadah::coeff(int narg, char **arg)
 {
   if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
     error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
+
+  // Print Tadah version once on rank 0 (single source of truth: blueprint TOML).
+  if (comm->me == 0) {
+    const auto &bp = tadah::core::BlueprintParser::getBlueprintTadahRef();
+    utils::logmesg(lmp, "  Tadah! plugin version {}\n", bp.version);
+  }
 
   if (!allocated) allocate();
 
