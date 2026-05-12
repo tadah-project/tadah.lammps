@@ -84,6 +84,23 @@ void PairTadah::compute_2b(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
+  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  const std::size_t n_desc = lt->S.descriptor_size();
+  if (lt->capture_adjoint_state) {
+    if (lt->aeds.cols() < static_cast<std::size_t>(nlocal)
+        || lt->aeds.rows() < n_desc) {
+      lt->aeds.resize(n_desc, nlocal);
+    }
+    lt->aeds.set_zero();
+    if (lt->bias > 0) {
+      for (int n = 0; n < nlocal; ++n) {
+        const int k_b = lt->species_intercept_idx_per_type[type[n]-1];
+        if (k_b >= 0) lt->aeds(k_b, n) = 1.0;
+      }
+    }
+    lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal), n_desc);
+  }
+
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     xtmp = x[i][0];
@@ -125,6 +142,70 @@ void PairTadah::compute_2b(int eflag, int vflag)
 
       if (evflag) ev_tally(i,j,nlocal,newton_pair,ei,
                            0.0,fpair,delij[0],delij[1],delij[2]);
+
+      if (lt->capture_adjoint_state) {
+        // Accumulate per-pair AED contribution into per-atom column.
+        for (std::size_t c = 0; c < n_desc; ++c) {
+          lt->aeds(c, i) += aed(c);
+        }
+        // F_i[k] = fpair*delij[k] with fpair = -(fd(:,0)*W)/rij ⇒
+        // dF_i[k]/dW[c] = -fd(c,0)*delij[k]/rij. Mirrored for atom j with
+        // opposite sign when j is local (matches the f[j] -= update guard).
+        const double inv_rij = 1.0 / rij;
+        for (std::size_t k_ax = 0; k_ax < 3; ++k_ax) {
+          const double scale_i = -delij[k_ax] * inv_rij;
+          double* row_i = lt->adjoint_snapshot.row_ptr(
+              static_cast<std::size_t>(i), k_ax);
+          for (std::size_t c = 0; c < n_desc; ++c) {
+            row_i[c] += scale_i * fd(c, 0);
+          }
+          if (j < nlocal) {
+            const double scale_j = -scale_i;
+            double* row_j = lt->adjoint_snapshot.row_ptr(
+                static_cast<std::size_t>(j), k_ax);
+            for (std::size_t c = 0; c < n_desc; ++c) {
+              row_j[c] += scale_j * fd(c, 0);
+            }
+          }
+        }
+        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // For 2b, E_pair depends only on rij. Under deformation F = I+ε:
+        //   ∂rij/∂ε_α = (1/rij) · Σ_β Σ_γ delij[β] · (e_α)_βγ · delij[γ]
+        //   ∂²E_pair/∂ε_α∂W_c = fd(c,0) · ∂rij/∂ε_α
+        //   dvirial_dW[α,c] += -fd(c,0) · ∂rij/∂ε_α  per directed pair.
+        //
+        // box_dofs=1 (iso): F = (1+ε)·I ⇒ ∂rij/∂ε|_iso = rij. Pre-3.7.5
+        // single-row accumulator preserved exactly.
+        //
+        // box_dofs=6 (Voigt): voigt_basis matches LammpsHessianAssembler
+        // (e[α][α]=1 on diagonals; off-diagonals e[i][j]=e[j][i]=0.5
+        // engineering-shear convention).
+        if (lt->adjoint_snapshot.box_dofs == 1) {
+          double* box_row = lt->adjoint_snapshot.box_row_ptr(0);
+          for (std::size_t c = 0; c < n_desc; ++c) {
+            box_row[c] += -fd(c, 0) * rij;
+          }
+        } else if (lt->adjoint_snapshot.box_dofs == 6) {
+          const double inv_rij = 1.0 / rij;
+          // ∂rij/∂ε_α for each Voigt mode (Voigt order xx,yy,zz,yz,xz,xy):
+          const double dr_de[6] = {
+            delij[0] * delij[0] * inv_rij,    // xx
+            delij[1] * delij[1] * inv_rij,    // yy
+            delij[2] * delij[2] * inv_rij,    // zz
+            delij[1] * delij[2] * inv_rij,    // yz (½·(d1·d2 + d2·d1) = d1·d2)
+            delij[0] * delij[2] * inv_rij,    // xz
+            delij[0] * delij[1] * inv_rij,    // xy
+          };
+          for (int alpha = 0; alpha < 6; ++alpha) {
+            const double pf = dr_de[alpha];
+            double* box_row = lt->adjoint_snapshot.box_row_ptr(
+                static_cast<std::size_t>(alpha));
+            for (std::size_t c = 0; c < n_desc; ++c) {
+              box_row[c] += -fd(c, 0) * pf;
+            }
+          }
+        }
+      }
     }
 
     // Per-species intercept: precomputed in LammpsTadah::initialize().
@@ -134,6 +215,10 @@ void PairTadah::compute_2b(int eflag, int vflag)
       if (eflag_atom)   eatom[i]  += ei_bias;
       if (eflag_global) eng_vdwl  += ei_bias;
     }
+  }
+
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.valid = true;
   }
 
   if (vflag_fdotr)  virial_fdotr_compute();
@@ -178,6 +263,12 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
+
+  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal),
+                                lt->S.descriptor_size());
+  }
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -314,7 +405,75 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
       if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
                                0.0,0.0,fij(0),fij(1),fij(2),delij[0],delij[1],delij[2]);
+
+      if (lt->capture_adjoint_state) {
+        // fd is the already-rotated descriptor (lines 292-299 above): for the
+        // 2b columns fd(s, k) = (fd_unrotated(s, 0) / rij) * delij[k]; the MB
+        // columns store the analytical dD/dx_k from calc_dXijdri_dXjidri.
+        // fij = -(fd * W) ⇒ dF_i[k]/dW[c] = -fd(c, k). Atom j picks up the
+        // opposite sign, mirroring the f[j] -= fij update.
+        const std::size_t n_desc_l = lt->S.descriptor_size();
+        for (std::size_t k_ax = 0; k_ax < 3; ++k_ax) {
+          double* row_i = lt->adjoint_snapshot.row_ptr(
+              static_cast<std::size_t>(i), k_ax);
+          for (std::size_t c = 0; c < n_desc_l; ++c) {
+            row_i[c] += -fd(c, k_ax);
+          }
+          if (j < nlocal) {
+            double* row_j = lt->adjoint_snapshot.row_ptr(
+                static_cast<std::size_t>(j), k_ax);
+            for (std::size_t c = 0; c < n_desc_l; ++c) {
+              row_j[c] += +fd(c, k_ax);
+            }
+          }
+        }
+        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // For mb under deformation F = I + ε on positions x → F·x:
+        //   Δdelij[k] = Σ_β (e_α)_kβ · delij[β]
+        //   ∂E_pair/∂ε_α = -F_i_pair · Δdelij = (fd·W) · Δdelij
+        //   ∂²E_pair/∂ε_α∂W_c = Σ_k fd(c, k) · Σ_β (e_α)_kβ · delij[β].
+        // dvirial_dW = -∂²E/∂ε∂W (force-side sign).
+        //
+        // box_dofs=1 (iso): F = (1+ε)·I ⇒ Δdelij = delij ⇒ accumulator
+        // collapses to -Σ_k fd(c,k)·delij[k]. Preserved exactly.
+        //
+        // box_dofs=6 (Voigt): voigt_basis matches LammpsHessianAssembler.
+        // Pre-compute vec_e[α][k] = Σ_β (e_α)_kβ · delij[β] once per
+        // pair, then loop α × c × k.
+        if (lt->adjoint_snapshot.box_dofs == 1) {
+          double* box_row = lt->adjoint_snapshot.box_row_ptr(0);
+          for (std::size_t c = 0; c < n_desc_l; ++c) {
+            double dot = 0.0;
+            for (std::size_t k = 0; k < 3; ++k) dot += fd(c, k) * delij[k];
+            box_row[c] += -dot;
+          }
+        } else if (lt->adjoint_snapshot.box_dofs == 6) {
+          // vec_e[α][k] (Voigt order xx,yy,zz,yz,xz,xy with engineering shear ½):
+          const double vec_e[6][3] = {
+            { delij[0],          0.0,               0.0              },  // xx
+            { 0.0,               delij[1],          0.0              },  // yy
+            { 0.0,               0.0,               delij[2]         },  // zz
+            { 0.0,               0.5 * delij[2],    0.5 * delij[1]   },  // yz
+            { 0.5 * delij[2],    0.0,               0.5 * delij[0]   },  // xz
+            { 0.5 * delij[1],    0.5 * delij[0],    0.0              },  // xy
+          };
+          for (int alpha = 0; alpha < 6; ++alpha) {
+            double* box_row = lt->adjoint_snapshot.box_row_ptr(
+                static_cast<std::size_t>(alpha));
+            for (std::size_t c = 0; c < n_desc_l; ++c) {
+              double sum = 0.0;
+              for (std::size_t k = 0; k < 3; ++k)
+                sum += fd(c, k) * vec_e[alpha][k];
+              box_row[c] += -sum;
+            }
+          }
+        }
+      }
     }
+  }
+
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.valid = true;
   }
 
   if (vflag_fdotr)  virial_fdotr_compute();
@@ -359,6 +518,12 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
+  }
+
+  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal),
+                                lt->S.descriptor_size());
   }
 
   for (ii = 0; ii < inum; ii++) {
@@ -464,7 +629,65 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
       if (evflag) ev_tally_xyz(i,j,nlocal,newton_pair,
                                0.0,0.0,fij(0),fij(1),fij(2),delij[0],delij[1],delij[2]);
+
+      if (lt->capture_adjoint_state) {
+        // fd already rotated (lines 444-451). fij = -(fd*W) ⇒
+        // dF_i[k]/dW[c] = -fd(c,k); atom j mirrors with opposite sign when
+        // local (matches f[j] -= fij). Ghost-j contributions arrive via the
+        // (j_local, i_image) symmetric visit in mb_full's iteration.
+        const std::size_t n_desc_l = lt->S.descriptor_size();
+        for (std::size_t k_ax = 0; k_ax < 3; ++k_ax) {
+          double* row_i = lt->adjoint_snapshot.row_ptr(
+              static_cast<std::size_t>(i), k_ax);
+          for (std::size_t c = 0; c < n_desc_l; ++c) {
+            row_i[c] += -fd(c, k_ax);
+          }
+          if (j < nlocal) {
+            double* row_j = lt->adjoint_snapshot.row_ptr(
+                static_cast<std::size_t>(j), k_ax);
+            for (std::size_t c = 0; c < n_desc_l; ++c) {
+              row_j[c] += +fd(c, k_ax);
+            }
+          }
+        }
+        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // Same derivation as mb_half (see comment there). mb_full's
+        // full-list double-counting cancels via the 0.5 weight already
+        // applied in calc_dXijdri (line 521 above), so per-pair math
+        // is identical.
+        if (lt->adjoint_snapshot.box_dofs == 1) {
+          double* box_row = lt->adjoint_snapshot.box_row_ptr(0);
+          for (std::size_t c = 0; c < n_desc_l; ++c) {
+            double dot = 0.0;
+            for (std::size_t k = 0; k < 3; ++k) dot += fd(c, k) * delij[k];
+            box_row[c] += -dot;
+          }
+        } else if (lt->adjoint_snapshot.box_dofs == 6) {
+          const double vec_e[6][3] = {
+            { delij[0],          0.0,               0.0              },  // xx
+            { 0.0,               delij[1],          0.0              },  // yy
+            { 0.0,               0.0,               delij[2]         },  // zz
+            { 0.0,               0.5 * delij[2],    0.5 * delij[1]   },  // yz
+            { 0.5 * delij[2],    0.0,               0.5 * delij[0]   },  // xz
+            { 0.5 * delij[1],    0.5 * delij[0],    0.0              },  // xy
+          };
+          for (int alpha = 0; alpha < 6; ++alpha) {
+            double* box_row = lt->adjoint_snapshot.box_row_ptr(
+                static_cast<std::size_t>(alpha));
+            for (std::size_t c = 0; c < n_desc_l; ++c) {
+              double sum = 0.0;
+              for (std::size_t k = 0; k < 3; ++k)
+                sum += fd(c, k) * vec_e[alpha][k];
+              box_row[c] += -sum;
+            }
+          }
+        }
+      }
     }
+  }
+
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.valid = true;
   }
 
   if (vflag_fdotr)  virial_fdotr_compute();
@@ -515,6 +738,15 @@ void PairTadah::compute_dimers(int eflag, int vflag)
 
   // This is the tolerance for the bond distance
   double eps=1e-1;
+
+  // Phase 3: dimer adjoint not implemented (per-molecule lt->aeds reuse +
+  // 4-atom-subunit force decomposition need per-atom remapping). Reset
+  // snapshot to a known empty state with valid=false; HPO host falls back
+  // to numerical FD for any dimer-using script.
+  if (lt->capture_adjoint_state) {
+    lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal),
+                                lt->S.descriptor_size());
+  }
 
   std::vector<int> markflag(atom->nlocal+atom->nghost,0);
   std::vector<int> jmarkflag(atom->nlocal+atom->nghost,0);

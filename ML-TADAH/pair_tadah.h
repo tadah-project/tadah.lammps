@@ -61,6 +61,15 @@ namespace LAMMPS_NS {
       bool load(const tadah::core::Context& ctx);   // copy from l-value
       bool load(tadah::core::Context&& ctx);        // move from r-value
 
+      /* Phase 3 IFT-adjoint host accessor.
+       *
+       * HPO host needs to (a) toggle lt->capture_adjoint_state around the
+       * post-relax pair->compute call, and (b) read lt->adjoint_snapshot and
+       * lt->aeds to assemble dO_k/dW. Exposed as a single accessor instead
+       * of one method per field; production MD never touches it. */
+      tadah::LammpsTadah*       lammps_tadah()       { return lt.get(); }
+      const tadah::LammpsTadah* lammps_tadah() const { return lt.get(); }
+
       PairTadah(class LAMMPS *);
       ~PairTadah() override;
 
