@@ -25,6 +25,7 @@ A small but focused release: a per-species bias precomputation, the `i`/`j` swap
 - Community / governance pointer files added (umbrella canonical at `Tadah.MLIP/`).
 - VERSION single-source-of-truth wired from blueprint TOML.
 - CI: lint stage and tag-gated release-tarball stage added.
+- Test build routed through `cmake-tools/cmake/TadahTesting.cmake` helpers (`tadah_declare_testing` / `tadah_add_tests`).
 
 ## [1.1.1] and earlier (condensed)
 
