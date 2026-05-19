@@ -24,7 +24,7 @@ build_debug:
     - cmake ../.. -DCMAKE_CXX_FLAGS="-g -O1 -Wall -Wpedantic -pedantic-errors -Wextra --coverage" -DTADAH_ENABLE_OPENMP=ON -DBUILD_TESTING=ON -DFETCHCONTENT_UPDATES_DISCONNECTED=ON
     - make -j ${CPU_BUILD}
     - make test
-    - cd ..; gcovr -e '.*tests.*|.*lib.*|.*ML-TADAH.*|build' -r .
+    - cd ..; gcovr -e '.*tests.*|external|.*/_deps/.*|.*ML-TADAH.*|build' -r .
   coverage: /^TOTAL.*\s+(\d+\%)$/
 
 build_release_shared:
@@ -98,7 +98,7 @@ lint_codespell:
         }
       fi
       export PATH="$HOME/.local/bin:$PATH"
-      codespell --skip='./build*,./external,./_deps,./tests/data,./ML-TADAH' || true
+      codespell --skip='./build*,./external,./_deps,./tests/data,./tests/catch2,./ML-TADAH' --ignore-words-list='lamda,lamdas,nd,SEH' || true
   allow_failure: true
 
 # ---- Source-tarball release (tag-gated) --------------------------------
