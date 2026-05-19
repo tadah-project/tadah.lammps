@@ -1,5 +1,6 @@
 #include <tadah/tadah.lammps/lammps_tadah.h>
 #include <tadah/core/core_user_config_parser.h>
+#include <tadah/core/intercept_layout.h>
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/registry.h>
 
@@ -104,9 +105,32 @@ void LammpsTadah::initialize(int narg, char **arg)
   }
 
   c.addInternal("DSIZE",S.descriptor_size());
-  bias = S.bias; 
+  bias = S.bias;
   rsize = S.rsize; // size of the density array (rhoi + rhoip)
 
+  // Precompute per-LAMMPS-atom-type intercept lookup tables. With per-species
+  // BIAS, every atom of LAMMPS type t contributes a fixed constant
+  // bias_per_atom_type[t] to its energy; the descriptor's intercept column for
+  // that species is species_intercept_idx_per_type[t]. Probing the model with
+  // a one-hot AED is identical to looking up w[k] in the linear case but works
+  // for any model that implements epredict.
+  const size_t ntypes = Z.size();
+  species_intercept_idx_per_type.assign(ntypes, -1);
+  bias_per_atom_type.assign(ntypes, 0.0);
+
+  if (bias > 0) {
+    core::aed_type probe(S.descriptor_size());
+    for (size_t t = 0; t < ntypes; ++t) {
+      const int z = Z[t];
+      if (z == 0) continue; // NULL slot — leave defaults
+      const int k = core::species_intercept_idx(z, c);
+      if (k < 0) continue;
+      species_intercept_idx_per_type[t] = k;
+      probe.set_zero();
+      probe(k) = 1.0;
+      bias_per_atom_type[t] = model->epredict(probe);
+    }
+  }
 }
 
 

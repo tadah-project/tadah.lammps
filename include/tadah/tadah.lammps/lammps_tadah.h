@@ -2,6 +2,7 @@
 #ifndef LAMMPS_TADAH_H
 #define LAMMPS_TADAH_H
 
+#include <cstddef>
 #include <memory>
 #include <vector>
 #include <tadah/core/context.h>
@@ -10,6 +11,61 @@
 #include <tadah/md/m_md_base.h>
 
 namespace tadah {
+
+/* Phase 3 (HPO_LAMMPS_GRADIENTS) IFT-adjoint state.
+ *
+ * When LammpsTadah::capture_adjoint_state is true, the pair_tadah compute_*
+ * kernels populate this snapshot during the regular force evaluation. The
+ * snapshot holds the analytical mixed partials of -d^2E/dx dW at the
+ * current atomic configuration:
+ *   - dF_dW[(3*atom + axis) * n_desc + c] = d(F_{atom,axis})/dW_c
+ *     (atom block; -d^2 E / d x dW per BF_Linear).
+ *   - dvirial_dW[alpha * n_desc + c] = -d^2 E / d eps_alpha dW_c
+ *     (box block; analogous "force-side" sign so the chain kernel uses
+ *     a single + sign across atom and box rows). Iso strain only in
+ *     Phase 3.7.5 (`box_dofs == 1`); aniso Voigt-6 (`box_dofs == 6`)
+ *     deferred to a follow-up.
+ *
+ * `box_dofs` is read by the compute_* reset/accumulate paths; the host
+ * sets it before toggling `capture_adjoint_state=true`. reset() preserves
+ * its value so successive captures honour the same configuration.
+ *
+ * Built only at the relaxed state x*; the HPO host consumes it to
+ * assemble dO_k/dW per LAMMPS observable.
+ *
+ * Production MD does NOT touch this struct: capture_adjoint_state defaults
+ * to false and gates a single predicted-false branch per compute_* call. */
+struct AdjointSnapshot {
+    std::vector<double> dF_dW;          // size = 3 * n_atoms * n_desc
+    std::vector<double> dvirial_dW;     // size = box_dofs * n_desc (may be 0)
+    std::size_t         n_atoms  = 0;
+    std::size_t         n_desc   = 0;
+    int                 box_dofs = 0;   // 0 (none), 1 (iso); 6 (Voigt) deferred
+    bool                valid    = false;
+
+    void reset(std::size_t n_atoms_, std::size_t n_desc_) {
+        n_atoms = n_atoms_;
+        n_desc  = n_desc_;
+        dF_dW.assign(3 * n_atoms * n_desc, 0.0);
+        dvirial_dW.assign(
+            static_cast<std::size_t>(box_dofs > 0 ? box_dofs : 0) * n_desc, 0.0);
+        valid = false;
+    }
+
+    inline double* row_ptr(std::size_t atom, std::size_t axis) {
+        return dF_dW.data() + (3 * atom + axis) * n_desc;
+    }
+    inline const double* row_ptr(std::size_t atom, std::size_t axis) const {
+        return dF_dW.data() + (3 * atom + axis) * n_desc;
+    }
+
+    inline double* box_row_ptr(std::size_t alpha) {
+        return dvirial_dW.data() + alpha * n_desc;
+    }
+    inline const double* box_row_ptr(std::size_t alpha) const {
+        return dvirial_dW.data() + alpha * n_desc;
+    }
+};
 
 class LammpsTadah
 {
@@ -59,6 +115,13 @@ public:
 
     std::vector<int> Z;
 
+    // Per-LAMMPS-atom-type lookup populated in initialize() once weights are
+    // loaded. With per-species BIAS, every atom of a given type contributes a
+    // fixed `bias_per_atom_type[type-1]` constant to its energy; the column
+    // index for that species is `species_intercept_idx_per_type[type-1]`.
+    std::vector<double> bias_per_atom_type;
+    std::vector<int>    species_intercept_idx_per_type;
+
     /* ------------ large sub-objects -------- */
     models::DC_Selector                         S;
     std::unique_ptr<models::Function_Base>      fb;
@@ -66,6 +129,14 @@ public:
 
     core::aeds_type2 aeds;
     core::rhos_type  rhos;
+
+    /* Phase 3 IFT-adjoint snapshot. See AdjointSnapshot doc above.
+     * Default off: production MD pays one predicted-false branch per
+     * compute_* call. Toggled true by the HPO host after minimize()
+     * reaches the relaxed state x*, then one more pair->compute(0,0)
+     * populates the snapshot. */
+    bool            capture_adjoint_state{false};
+    AdjointSnapshot adjoint_snapshot;
 };
 } // namespace tadah
 #endif

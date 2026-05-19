@@ -18,7 +18,7 @@ CORE_URL=https://git.ecdf.ed.ac.uk/tadah/core.git
 MODELS_URL=https://git.ecdf.ed.ac.uk/tadah/models.git
 MD_URL=https://git.ecdf.ed.ac.uk/tadah/md.git
 
-if ! git clone -b ${GIT_BRANCH} $CORE_URL build/CORE 2>/dev/null && [ -d CORE ] ; then  echo Skiping CORE clone as directory exists;  fi
+if ! git clone -b ${GIT_BRANCH} $CORE_URL build/CORE 2>/dev/null && [ -d CORE ] ; then  echo Skipping CORE clone as directory exists;  fi
 
 if ! git clone -b ${GIT_BRANCH} $MODELS_URL build/MODELS 2>/dev/null && [ -d MODELS ] ; then  echo Skipping MODELS clone as directory exists;  fi
 
