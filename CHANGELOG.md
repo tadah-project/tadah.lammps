@@ -7,7 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 Nothing yet.
 
-## [1.3.0-beta.1] — TBD
+## [1.3.0-beta.1] — 2026-05-20
 
 A small but focused release: a per-species bias precomputation, the `i`/`j` swap fix, and the standard build / community / VERSION wiring.
 
