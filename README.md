@@ -10,7 +10,7 @@ This repository adds **ML‑TADAH** to **LAMMPS** as a **pair style** (`pair_sty
 > **Note:** ML‑TADAH / Tadah.LAMMPS is **not part of the official LAMMPS distribution**. You must clone this repository yourself and enable it in your LAMMPS build.
 
 Documentation (recommended starting point, incl. extended instructions):
-https://tadah.readthedocs.io/
+https://tadah.readthedocs.io/develop/
 
 ---
 
@@ -102,4 +102,4 @@ Result: the resulting LAMMPS binary includes **ML‑TADAH** and provides `pair_s
   `integration/TadahLAMMPSProjectInclude.cmake`
 
 For usage, examples, and troubleshooting, see:
-https://tadah.readthedocs.io/
+https://tadah.readthedocs.io/develop/
