@@ -32,7 +32,9 @@ See the README file in the top-level LAMMPS directory.
 
 #include <tadah/core/blueprint_parser.h>
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 
 using namespace LAMMPS_NS;
@@ -479,6 +481,127 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   if (vflag_fdotr)  virial_fdotr_compute();
 
 }
+
+/* ---------------------------------------------------------------------- */
+/* EAM-collapsed fast path.
+ *
+ * For a linear model E_i = w . aed_i, the radial 2b block collapses to a
+ * scalar pair function phi(r) and an EAM-form mb block to F(rho_bar_i),
+ * rho_bar_i = sum_j rho(r_ij). phi/rho are cubic-Hermite tables built in
+ * setup_eam_fastpath() by sampling the descriptors' own calc routines;
+ * F, F' are evaluated analytically per atom (DM_Base::eam_embed) so no
+ * embedding table range needs guessing. Structure mirrors pair_eam:
+ * pass 1 accumulates rho_bar (reverse comm, 1 double), embedding per local
+ * atom (forward comm of F', 1 double), pass 2 central pair forces.       */
+void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
+{
+  int i,j,ii,jj,jnum;
+  double xtmp,ytmp,ztmp,delx,dely,delz;
+  double rij_sq;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  ev_init(eflag,vflag);
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int nlocal = atom->nlocal;
+  int newton_pair = force->newton_pair;
+
+  int inum = list->inum;
+  ilist = list->ilist;
+  numneigh = list->numneigh;
+  firstneigh = list->firstneigh;
+
+  const tadah::EamCollapseTables &T = lt->eam_tables;
+  const double rc_phi = T.phi.rmax;
+  const double rc_rho = T.rho.rmax;
+
+  const int ntotal = nlocal + atom->nghost;
+  if ((int)lt->eam_rho_bar.size() < atom->nmax) {
+    lt->eam_rho_bar.resize(atom->nmax);
+    lt->eam_fp.resize(atom->nmax);
+  }
+  std::fill_n(lt->eam_rho_bar.begin(), ntotal, 0.0);
+
+  // pass 1: accumulate rho_bar
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0]; ytmp = x[i][1]; ztmp = x[i][2];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      j &= NEIGHMASK;
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rij_sq = delx*delx + dely*dely + delz*delz;
+      if (rij_sq >= rc_rho*rc_rho) continue;
+      const double rij = sqrt(rij_sq);
+      const double rho_r = T.rho.eval_val(rij);
+      lt->eam_rho_bar[i] += rho_r;
+      if (newton_pair || j < nlocal) lt->eam_rho_bar[j] += rho_r;
+    }
+  }
+
+  if (newton_pair) comm->reverse_comm(this);
+
+  // embedding: exact analytic F, F' per local atom
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    double F, Fp;
+    lt->S.dmb->eam_embed(T.w, lt->eam_rho_bar[i], F, Fp);
+    lt->eam_fp[i] = Fp;
+    if (eflag_global) eng_vdwl += F;
+    if (eflag_atom) eatom[i] += F;
+  }
+
+  comm->forward_comm(this);
+
+  // pass 2: central pair forces from the same Hermite segments
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0]; ytmp = x[i][1]; ztmp = x[i][2];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      j &= NEIGHMASK;
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rij_sq = delx*delx + dely*dely + delz*delz;
+      if (rij_sq >= lt->cutoff_max_sq) continue;
+      const double rij = sqrt(rij_sq);
+
+      double phi = 0.0, phip = 0.0;
+      if (rij < rc_phi) T.phi.eval(rij, phi, phip);
+      double rhop = 0.0;
+      if (rij < rc_rho) {
+        double rv;
+        T.rho.eval(rij, rv, rhop);
+      }
+
+      const double psip = phip + (lt->eam_fp[i] + lt->eam_fp[j]) * rhop;
+      const double fpair = -psip / rij;
+
+      f[i][0] += delx*fpair;
+      f[i][1] += dely*fpair;
+      f[i][2] += delz*fpair;
+      if (newton_pair || j < nlocal) {
+        f[j][0] -= delx*fpair;
+        f[j][1] -= dely*fpair;
+        f[j][2] -= delz*fpair;
+      }
+
+      if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                           phi,0.0,fpair,delx,dely,delz);
+    }
+  }
+
+  if (vflag_fdotr) virial_fdotr_compute();
+}
+
 void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 {
   int i,j,ii,jj,jnum;
@@ -1006,6 +1129,15 @@ void PairTadah::compute(int eflag, int vflag)
 {
   if (lt->dimer) {
     compute_dimers(eflag, vflag);
+  } else if (lt->eam_fast) {
+    /* Falling back to the generic kernel here would silently corrupt the
+     * reverse/forward comm (sizes were set to the fast path's 1 double in
+     * coeff). Adjoint capture needs the per-pair descriptor vectors, which
+     * the collapsed path never forms — hard error instead. */
+    if (lt->capture_adjoint_state)
+      error->one(FLERR, "pair_tadah: adjoint capture is incompatible with the "
+                        "EAM fast path; set EAMFAST false in the potential");
+    compute_2b_mb_half_eamfast(eflag, vflag);
   } else if (lt->linear && lt->initmb) {
     compute_2b_mb_half(eflag, vflag);
   } else if (lt->linear /*&& !lt->initmb*/) {
@@ -1033,6 +1165,54 @@ void PairTadah::settings(int narg, char **arg)
 {
   // pair_style tadah
   if (narg != 0) utils::missing_cmd_args(FLERR, "pair_style tadah", error);
+}
+
+/* Resolve the EAM-collapse fast path gate and build the phi/rho tables.
+ * Called from coeff() after lt->initialize(). Controlled by the EAMFAST
+ * config key (BOOL, default true via the blueprint); falls back silently to
+ * the generic path when the model/descriptor combination does not collapse. */
+void PairTadah::setup_eam_fastpath()
+{
+  lt->eam_fast = false;
+
+  /* EAMFAST is a blueprint BOOL with default_value=true: contains()
+   * materialises the default on first query, so absent means enabled. The
+   * guard keeps drivers with a blueprint-less Context on the (enabled)
+   * default rather than throwing. */
+  bool want = true;
+  try {
+    if (lt->c.contains("EAMFAST")) want = lt->c.get<bool>("EAMFAST");
+  } catch (const std::exception&) { /* keep default */ }
+  if (!want) return;
+
+  if (!(lt->linear && !lt->norm && lt->bias == 0 && !lt->dimer &&
+        lt->init2b && lt->initmb && atom->ntypes == 1 &&
+        lt->S.dmb && lt->S.dmb->eam_form()))
+    return;
+
+  if (lt->eam_tables.valid) {              // same potential object: reuse
+    lt->eam_fast = true;
+    return;
+  }
+
+  if (!lt->c.contains("WEIGHTS")) return;
+  tadah::core::t_type w;
+  w.resize(lt->c.size("WEIGHTS"));
+  lt->c.get<tadah::core::t_type>("WEIGHTS", w);
+
+  std::string why;
+  constexpr int NR = 8192;
+  if (!tadah::build_eam_collapse(lt->S, w, lt->Z[0], NR,
+                                 lt->eam_tables, why)) {
+    if (comm->me == 0)
+      utils::logmesg(lmp, "  Tadah! EAM fast path unavailable: {}\n", why);
+    return;
+  }
+  lt->eam_fast = true;
+  if (comm->me == 0)
+    utils::logmesg(lmp,
+        "  Tadah! EAM-collapse fast path ON (nr={}, parity dphi={:.3e} drho={:.3e})\n",
+        NR, lt->eam_tables.parity_err_phi, lt->eam_tables.parity_err_rho);
 }
 
 // REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
@@ -1097,7 +1277,13 @@ void PairTadah::coeff(int narg, char **arg)
       lt->rhos.resize(s,4);
     }
   }
-  if (lt->linear) {
+  setup_eam_fastpath();
+
+  if (lt->eam_fast) {
+    comm_reverse = 1;   // scalar rho_bar
+    comm_forward = 1;   // scalar F'
+  }
+  else if (lt->linear) {
     comm_reverse = lt->S.dmb->rhoi_size()+lt->S.d2b->size();
     comm_forward = lt->S.dmb->rhoip_size();
   }
@@ -1134,6 +1320,10 @@ double PairTadah::init_one(int i, int j) {
 /* ---------------------------------------------------------------------- */
 int PairTadah::pack_reverse_comm(int n, int first, double *buf)
 {
+  if (lt->eam_fast) {
+    for (int k = 0; k < n; ++k) buf[k] = lt->eam_rho_bar[first+k];
+    return n;
+  }
   if (lt->linear)
     return lt->pack_reverse_linear(n,first,buf);
   else
@@ -1142,6 +1332,10 @@ int PairTadah::pack_reverse_comm(int n, int first, double *buf)
 /* ---------------------------------------------------------------------- */
 void PairTadah::unpack_reverse_comm(int n, int *list, double *buf)
 {
+  if (lt->eam_fast) {
+    for (int k = 0; k < n; ++k) lt->eam_rho_bar[list[k]] += buf[k];
+    return;
+  }
   if (lt->linear)
     lt->unpack_reverse_linear(n,list,buf);
   else
@@ -1151,6 +1345,10 @@ void PairTadah::unpack_reverse_comm(int n, int *list, double *buf)
 int PairTadah::pack_forward_comm(int n, int *list, double *buf,
                                  int /*pbc_flag*/, int * /*pbc*/)
 {
+  if (lt->eam_fast) {
+    for (int k = 0; k < n; ++k) buf[k] = lt->eam_fp[list[k]];
+    return n;
+  }
   if (lt->linear)
     return lt->pack_forward_linear(n,list,buf);
   else
@@ -1159,6 +1357,10 @@ int PairTadah::pack_forward_comm(int n, int *list, double *buf,
 /* ---------------------------------------------------------------------- */
 void PairTadah::unpack_forward_comm(int n, int first, double *buf)
 {
+  if (lt->eam_fast) {
+    for (int k = 0; k < n; ++k) lt->eam_fp[first+k] = buf[k];
+    return;
+  }
   if (lt->linear)
     lt->unpack_forward_linear(n,first,buf);
   else
@@ -1209,6 +1411,16 @@ bool PairTadah::load(const tadah::core::Context& ctx)
         lt.reset();
         return false;
     }
+}
+
+bool PairTadah::load(std::shared_ptr<tadah::LammpsTadah> shared_lt)
+{
+    /* Adopt a pre-built potential (driver-owned). Sub-object construction
+     * already happened in the LammpsTadah ctor; coeff() still runs
+     * initialize() + setup_eam_fastpath() on it (both idempotent), so all
+     * per-pair_coeff state is refreshed exactly as in the ctx path. */
+    lt = std::move(shared_lt);
+    return static_cast<bool>(lt);
 }
 
 bool PairTadah::load(tadah::core::Context&& ctx)

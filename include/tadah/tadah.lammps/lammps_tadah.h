@@ -9,6 +9,7 @@
 #include <tadah/models/dc_selector.h>
 #include <tadah/models/functions/function_base.h>
 #include <tadah/md/m_md_base.h>
+#include <tadah/tadah.lammps/eam_collapse.h>
 
 namespace tadah {
 
@@ -129,6 +130,18 @@ public:
 
     core::aeds_type2 aeds;
     core::rhos_type  rhos;
+
+    /* EAM-collapse fast path (linear model + radial D2 + EAM-form DM).
+     * Resolved in PairTadah::coeff: when eam_fast is true the pair style
+     * runs compute_2b_mb_half_eamfast() with the tables below and scalar
+     * (1-double) forward/reverse comm instead of descriptor-vector comm.
+     * eam_rho_bar/eam_fp are per-atom scratch, resized in compute; like
+     * aeds/rhos they make this object shareable across sims only when the
+     * sims run sequentially (per-thread sharing). */
+    EamCollapseTables   eam_tables;
+    bool                eam_fast{false};
+    std::vector<double> eam_rho_bar;
+    std::vector<double> eam_fp;
 
     /* Phase 3 IFT-adjoint snapshot. See AdjointSnapshot doc above.
      * Default off: production MD pays one predicted-false branch per

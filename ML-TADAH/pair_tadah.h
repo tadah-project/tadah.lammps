@@ -40,11 +40,24 @@ namespace LAMMPS_NS {
       void compute_2b_mb_half(int eflag, int vflag);
       void compute_2b_mb_full(int eflag, int vflag);
 
+      /** EAM-collapsed fast path: linear model + radial 2b + EAM-form mb
+       *  (e.g. the refit family D2_Knot5 + DM_REAM). Same physics as
+       *  compute_2b_mb_half via tabulated phi/rho + analytic embedding;
+       *  gated in coeff() (lt->eam_fast). */
+      void compute_2b_mb_half_eamfast(int eflag, int vflag);
+      /** Resolve the eam_fast gate + build tables; called from coeff(). */
+      void setup_eam_fastpath();
+
       /** dimer-dimer: */
       void compute_dimers(int eflag, int vflag);
       std::vector<std::pair<int,int>> midx;
 
-      std::unique_ptr<tadah::LammpsTadah> lt;
+      /* shared_ptr so a driver (e.g. tadah hpo) can build ONE LammpsTadah
+       * per candidate potential and hand it to every PairTadah recreated by
+       * the scripts' `clear` cycles — see load(shared_ptr). The object holds
+       * per-simulation scratch (aeds/rhos/eam_*), so sharing is only valid
+       * across sims that run sequentially (per-thread). */
+      std::shared_ptr<tadah::LammpsTadah> lt;
 
       int nmax=0;
       void allocate();
@@ -60,6 +73,7 @@ namespace LAMMPS_NS {
       bool load(int argc, char **argv);                          // CLI
       bool load(const tadah::core::Context& ctx);   // copy from l-value
       bool load(tadah::core::Context&& ctx);        // move from r-value
+      bool load(std::shared_ptr<tadah::LammpsTadah> shared_lt); // adopt shared
 
       /* Phase 3 IFT-adjoint host accessor.
        *
