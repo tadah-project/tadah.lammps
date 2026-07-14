@@ -602,6 +602,70 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
   if (vflag_fdotr) virial_fdotr_compute();
 }
 
+/* Pair-collapsed fast path (pure 2b, INITMB false): compute_2b with the
+ * per-pair descriptor recompute + weight dot products replaced by a single
+ * Hermite lookup, phi(r) and phi'(r) from the same segment. The degenerate
+ * F==0, rho==0 EAM collapse: one half-list pass, no ghost comm. Gate
+ * excludes bias, so no per-species intercept block. Adjoint capture is
+ * routed to compute_2b in compute() (safe: neither kernel does pair comm). */
+void PairTadah::compute_2b_fast(int eflag, int vflag)
+{
+  int i,j,ii,jj,jnum;
+  double xtmp,ytmp,ztmp,delx,dely,delz;
+  double rij_sq;
+  int *ilist,*jlist,*numneigh,**firstneigh;
+
+  ev_init(eflag,vflag);
+
+  double **x = atom->x;
+  double **f = atom->f;
+  int nlocal = atom->nlocal;
+  int newton_pair = force->newton_pair;
+
+  int inum = list->inum;
+  ilist = list->ilist;
+  numneigh = list->numneigh;
+  firstneigh = list->firstneigh;
+
+  const tadah::EamRadialTable &phi_tab = lt->eam_tables.phi;
+  const double rc_phi_sq = phi_tab.rmax * phi_tab.rmax;
+
+  for (ii = 0; ii < inum; ii++) {
+    i = ilist[ii];
+    xtmp = x[i][0]; ytmp = x[i][1]; ztmp = x[i][2];
+    jlist = firstneigh[i];
+    jnum = numneigh[i];
+    for (jj = 0; jj < jnum; jj++) {
+      j = jlist[jj];
+      j &= NEIGHMASK;
+      delx = xtmp - x[j][0];
+      dely = ytmp - x[j][1];
+      delz = ztmp - x[j][2];
+      rij_sq = delx*delx + dely*dely + delz*delz;
+      if (rij_sq > lt->cutoff_max_sq || rij_sq > rc_phi_sq) continue;
+      const double rij = sqrt(rij_sq);
+
+      double phi, phip;
+      phi_tab.eval(rij, phi, phip);
+      const double fpair = -phip / rij;
+
+      f[i][0] += delx*fpair;
+      f[i][1] += dely*fpair;
+      f[i][2] += delz*fpair;
+      if (newton_pair || j < nlocal) {
+        f[j][0] -= delx*fpair;
+        f[j][1] -= dely*fpair;
+        f[j][2] -= delz*fpair;
+      }
+
+      if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                           phi,0.0,fpair,delx,dely,delz);
+    }
+  }
+
+  if (vflag_fdotr) virial_fdotr_compute();
+}
+
 void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 {
   int i,j,ii,jj,jnum;
@@ -1130,14 +1194,22 @@ void PairTadah::compute(int eflag, int vflag)
   if (lt->dimer) {
     compute_dimers(eflag, vflag);
   } else if (lt->eam_fast) {
-    /* Falling back to the generic kernel here would silently corrupt the
-     * reverse/forward comm (sizes were set to the fast path's 1 double in
-     * coeff). Adjoint capture needs the per-pair descriptor vectors, which
-     * the collapsed path never forms — hard error instead. */
-    if (lt->capture_adjoint_state)
-      error->one(FLERR, "pair_tadah: adjoint capture is incompatible with the "
-                        "EAM fast path; set EAMFAST false in the potential");
-    compute_2b_mb_half_eamfast(eflag, vflag);
+    if (lt->capture_adjoint_state) {
+      /* MB: falling back to the generic kernel here would silently corrupt
+       * the reverse/forward comm (sizes were set to the fast path's 1 double
+       * in coeff), and the collapsed path never forms the per-pair
+       * descriptor vectors the adjoint needs — hard error instead.
+       * Pure 2b: the generic kernel IS safe — neither kernel does pair comm
+       * (widths are 0) and compute_2b forms the descriptor vectors. */
+      if (lt->initmb)
+        error->one(FLERR, "pair_tadah: adjoint capture is incompatible with the "
+                          "EAM fast path; set EAMFAST false in the potential");
+      compute_2b(eflag, vflag);
+    } else if (lt->initmb) {
+      compute_2b_mb_half_eamfast(eflag, vflag);
+    } else {
+      compute_2b_fast(eflag, vflag);
+    }
   } else if (lt->linear && lt->initmb) {
     compute_2b_mb_half(eflag, vflag);
   } else if (lt->linear /*&& !lt->initmb*/) {
@@ -1154,8 +1226,8 @@ void PairTadah::allocate()
   map = new int[n];
   memory->create(cutsq,n,n,"pair:cutsq");
   memory->create(setflag,n,n,"pair:setflag");
-  for (int i = 1; i < n-1; i++)
-    for (int j = i; j < n-1; j++) setflag[i][j] = 0;
+  for (int i = 1; i < n; i++)
+    for (int j = i; j < n; j++) setflag[i][j] = 0;
 
   allocated = 1;
 }
@@ -1186,11 +1258,15 @@ void PairTadah::setup_eam_fastpath()
   if (!want) return;
 
   if (!(lt->linear && !lt->norm && lt->bias == 0 && !lt->dimer &&
-        lt->init2b && lt->initmb && atom->ntypes == 1 &&
-        lt->S.dmb && lt->S.dmb->eam_form()))
+        lt->init2b && atom->ntypes == 1))
+    return;
+  /* MB present: only the EAM form collapses. Pure 2b (INITMB false) always
+   * collapses -- the phi sampling is descriptor-agnostic. */
+  if (lt->initmb && !(lt->S.dmb && lt->S.dmb->eam_form()))
     return;
 
-  if (lt->eam_tables.valid) {              // same potential object: reuse
+  if (lt->eam_tables.valid &&
+      lt->eam_tables.has_mb == lt->initmb) { // same potential object: reuse
     lt->eam_fast = true;
     return;
   }
@@ -1202,17 +1278,25 @@ void PairTadah::setup_eam_fastpath()
 
   std::string why;
   constexpr int NR = 8192;
-  if (!tadah::build_eam_collapse(lt->S, w, lt->Z[0], NR,
-                                 lt->eam_tables, why)) {
+  const bool ok = lt->initmb
+      ? tadah::build_eam_collapse(lt->S, w, lt->Z[0], NR, lt->eam_tables, why)
+      : tadah::build_pair2b_collapse(lt->S, w, lt->Z[0], NR, lt->eam_tables, why);
+  if (!ok) {
     if (comm->me == 0)
-      utils::logmesg(lmp, "  Tadah! EAM fast path unavailable: {}\n", why);
+      utils::logmesg(lmp, "  Tadah! collapse fast path unavailable: {}\n", why);
     return;
   }
   lt->eam_fast = true;
-  if (comm->me == 0)
-    utils::logmesg(lmp,
-        "  Tadah! EAM-collapse fast path ON (nr={}, parity dphi={:.3e} drho={:.3e})\n",
-        NR, lt->eam_tables.parity_err_phi, lt->eam_tables.parity_err_rho);
+  if (comm->me == 0) {
+    if (lt->initmb)
+      utils::logmesg(lmp,
+          "  Tadah! EAM-collapse fast path ON (nr={}, parity dphi={:.3e} drho={:.3e})\n",
+          NR, lt->eam_tables.parity_err_phi, lt->eam_tables.parity_err_rho);
+    else
+      utils::logmesg(lmp,
+          "  Tadah! pair-collapse fast path ON (2b-only, nr={}, parity dphi={:.3e})\n",
+          NR, lt->eam_tables.parity_err_phi);
+  }
 }
 
 // REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
@@ -1279,9 +1363,13 @@ void PairTadah::coeff(int narg, char **arg)
   }
   setup_eam_fastpath();
 
-  if (lt->eam_fast) {
+  if (lt->eam_fast && lt->initmb) {
     comm_reverse = 1;   // scalar rho_bar
     comm_forward = 1;   // scalar F'
+  }
+  else if (!lt->initmb && lt->linear) {
+    comm_reverse = 0;   // compute_2b / compute_2b_fast do no pair comm
+    comm_forward = 0;
   }
   else if (lt->linear) {
     comm_reverse = lt->S.dmb->rhoi_size()+lt->S.d2b->size();
@@ -1298,8 +1386,6 @@ void PairTadah::init_style()
 {
   if (atom->tag_enable == 0)
     error->all(FLERR,"Pair style tadah requires atom IDs");
-
-  neighbor->request(this,instance_me);
 
   if (lt->dimer) {
     neighbor->add_request(this, NeighConst::REQ_FULL);

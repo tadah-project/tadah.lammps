@@ -45,6 +45,10 @@ namespace LAMMPS_NS {
        *  compute_2b_mb_half via tabulated phi/rho + analytic embedding;
        *  gated in coeff() (lt->eam_fast). */
       void compute_2b_mb_half_eamfast(int eflag, int vflag);
+      /** Pair-collapsed fast path: linear model + radial 2b only
+       *  (INITMB false). Same physics as compute_2b via the tabulated phi;
+       *  no ghost comm at all. Gated in coeff() (lt->eam_fast, !initmb). */
+      void compute_2b_fast(int eflag, int vflag);
       /** Resolve the eam_fast gate + build tables; called from coeff(). */
       void setup_eam_fastpath();
 

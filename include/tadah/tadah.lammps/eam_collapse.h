@@ -2,16 +2,22 @@
 #ifndef TADAH_LAMMPS_EAM_COLLAPSE_H
 #define TADAH_LAMMPS_EAM_COLLAPSE_H
 
-/* EAM collapse of a linear Tadah model (M_BLR/BF_Linear + radial D2 +
- * EAM-form DM, e.g. the `tadah refit` family D2_Knot5 + DM_REAM).
+/* Table collapse of a linear Tadah model.
  *
  * For a linear model the total energy is E_i = w . aed_i, so the 2b block
- * collapses to a scalar pair function phi(r) = sum_k w_k B_k(r) and the
+ * collapses to a scalar pair function phi(r) = sum_k w_k B_k(r) and an
  * EAM-form MB block to F(rho_bar) with rho_bar_i = sum_j rho(r_ij). The MD
  * hot path then needs only phi, phi', rho, rho' per pair (tabulated here as
  * cubic Hermite splines with analytic node derivatives, so energy and force
  * come from the same interpolant) plus the exact analytic F, F' per atom
  * (DM_Base::eam_embed).
+ *
+ * Two collapses are supported, selected by the model's descriptor set:
+ *  - build_eam_collapse:    radial D2 + EAM-form DM (e.g. the `tadah refit`
+ *    family D2_Knot5 + DM_REAM) -> phi + rho tables, analytic F.
+ *  - build_pair2b_collapse: pure two-body (INITMB false) -> phi table only.
+ *    This is the degenerate F==0, rho==0 case; no capability opt-in is
+ *    needed because the phi sampling below is descriptor-agnostic.
  *
  * The pair tables are built by sampling the descriptors' OWN public calc
  * routines (zeroed-scratch trick for the 2b block), so they are node-exact
@@ -65,17 +71,109 @@ struct EamRadialTable {
 
 struct EamCollapseTables {
   bool valid = false;
+  bool has_mb = true;      // false for the pure-2b (phi-only) collapse
   EamRadialTable phi;      // pair function (per pair, total; halves tallied)
-  EamRadialTable rho;      // scalar pair density
+  EamRadialTable rho;      // scalar pair density (empty when !has_mb)
   tadah::core::t_type w;   // full model weight vector (for eam_embed)
   int Z = 0;               // single species atomic number
   double parity_err_phi = 0.0;  // max |table-analytic| mid-node self-check
   double parity_err_rho = 0.0;
 };
 
-/* Build the collapse tables. Returns false (with `why` set) when this
- * S/model combination does not collapse; caller falls back to the generic
- * compute path. `w` must be the full linear weight vector (no bias). */
+/* phi(r) sampling: zeroed-scratch trick against the generic 2b routines.
+ * (Zi,Zj) is passed explicitly so a future multi-species extension can key
+ * one table per pair; today callers pass the single species twice. */
+inline void sample_phi_table(const models::DC_Selector &S,
+                             const tadah::core::t_type &w,
+                             const int Zi, const int Zj, const int nr,
+                             EamRadialTable &tab) {
+  const std::size_t ndesc = S.descriptor_size();
+  const double rc2b = S.d2b->get_rcut();
+  tab.nr = nr;
+  tab.rmax = rc2b;
+  tab.dr = rc2b / (nr - 1);
+  tab.inv_dr = 1.0 / tab.dr;
+  tab.v.assign(nr, 0.0);
+  tab.d.assign(nr, 0.0);
+  tadah::core::aed_type aed(ndesc);          // zero-initialised
+  tadah::core::fd_type fd(ndesc);
+  for (int k = 1; k < nr; ++k) {             // r=0 kept at phi=0; never queried
+    const double r = k * tab.dr;
+    aed.set_zero();
+    S.d2b->calc_aed(Zi, Zj, r, r * r, aed, 1.0);
+    fd.set_zero();
+    S.d2b->calc_dXijdri(Zi, Zj, r, r * r, fd, 1.0);
+    double pv = 0.0, pd = 0.0;
+    for (std::size_t c = 0; c < ndesc; ++c) {
+      pv += w(c) * aed(c);
+      pd += w(c) * fd(c, 0);
+    }
+    tab.v[k] = pv;
+    tab.d[k] = pd;
+  }
+  /* r -> 0 head: extrapolate node 0 linearly from node 1 so the segment
+   * [0,dr) is well-defined; pair distances that small are unphysical. */
+  tab.d[0] = tab.d[1];
+  tab.v[0] = tab.v[1] - tab.d[1] * tab.dr;
+}
+
+/* Mid-node phi parity self-check against the analytic sampling. */
+inline double phi_parity_check(const models::DC_Selector &S,
+                               const tadah::core::t_type &w,
+                               const int Zi, const int Zj,
+                               const EamRadialTable &tab) {
+  const std::size_t ndesc = S.descriptor_size();
+  tadah::core::aed_type aed(ndesc);
+  double err = 0.0;
+  for (int k = 1; k < tab.nr - 1; k += std::max(1, tab.nr / 64)) {
+    const double r = (k + 0.5) * tab.dr;
+    double tv, td;
+    tab.eval(r, tv, td);
+    aed.set_zero();
+    S.d2b->calc_aed(Zi, Zj, r, r * r, aed, 1.0);
+    double av = 0.0;
+    for (std::size_t c = 0; c < ndesc; ++c) av += w(c) * aed(c);
+    err = std::max(err, std::fabs(tv - av));
+  }
+  return err;
+}
+
+/* Build the pure two-body collapse (phi table only; INITMB false).
+ * Returns false (with `why` set) when this S/model combination does not
+ * collapse; caller falls back to the generic compute path. `w` must be the
+ * full linear weight vector (no bias). */
+inline bool build_pair2b_collapse(const models::DC_Selector &S,
+                                  const tadah::core::t_type &w,
+                                  const int Z, const int nr,
+                                  EamCollapseTables &T, std::string &why) {
+  T.valid = false;
+  if (!S.d2b) { why = "missing d2b"; return false; }
+  const std::size_t ndesc = S.descriptor_size();
+  if (w.size() != ndesc) {
+    why = "weight count " + std::to_string(w.size()) +
+          " != descriptor size " + std::to_string(ndesc);
+    return false;
+  }
+  const double rc2b = S.d2b->get_rcut();
+  if (!(rc2b > 0.0)) { why = "non-positive cutoff"; return false; }
+
+  T.w = w;
+  T.Z = Z;
+  T.has_mb = false;
+  T.rho = EamRadialTable{};      // no density in the pure-2b collapse
+  T.parity_err_rho = 0.0;
+
+  sample_phi_table(S, w, Z, Z, nr, T.phi);
+  T.parity_err_phi = phi_parity_check(S, w, Z, Z, T.phi);
+
+  T.valid = true;
+  return true;
+}
+
+/* Build the EAM collapse tables (radial D2 + EAM-form DM). Returns false
+ * (with `why` set) when this S/model combination does not collapse; caller
+ * falls back to the generic compute path. `w` must be the full linear
+ * weight vector (no bias). */
 inline bool build_eam_collapse(const models::DC_Selector &S,
                                const tadah::core::t_type &w,
                                const int Z, const int nr,
@@ -99,36 +197,9 @@ inline bool build_eam_collapse(const models::DC_Selector &S,
 
   T.w = w;
   T.Z = Z;
+  T.has_mb = true;
 
-  /* ---- phi(r): zeroed-scratch sampling of the generic 2b routines ---- */
-  T.phi.nr = nr;
-  T.phi.rmax = rc2b;
-  T.phi.dr = rc2b / (nr - 1);
-  T.phi.inv_dr = 1.0 / T.phi.dr;
-  T.phi.v.assign(nr, 0.0);
-  T.phi.d.assign(nr, 0.0);
-  {
-    tadah::core::aed_type aed(ndesc);        // zero-initialised
-    tadah::core::fd_type fd(ndesc);
-    for (int k = 1; k < nr; ++k) {           // r=0 kept at phi=0; never queried
-      const double r = k * T.phi.dr;
-      aed.set_zero();
-      S.d2b->calc_aed(Z, Z, r, r * r, aed, 1.0);
-      fd.set_zero();
-      S.d2b->calc_dXijdri(Z, Z, r, r * r, fd, 1.0);
-      double pv = 0.0, pd = 0.0;
-      for (std::size_t c = 0; c < ndesc; ++c) {
-        pv += w(c) * aed(c);
-        pd += w(c) * fd(c, 0);
-      }
-      T.phi.v[k] = pv;
-      T.phi.d[k] = pd;
-    }
-    /* r -> 0 head: extrapolate node 0 linearly from node 1 so the segment
-     * [0,dr) is well-defined; pair distances that small are unphysical. */
-    T.phi.d[0] = T.phi.d[1];
-    T.phi.v[0] = T.phi.v[1] - T.phi.d[1] * T.phi.dr;
-  }
+  sample_phi_table(S, w, Z, Z, nr, T.phi);
 
   /* ---- rho(r): exact scalar density from the DM descriptor ---- */
   T.rho.nr = nr;
