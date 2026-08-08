@@ -100,9 +100,8 @@ inline void sample_phi_table(const models::DC_Selector &S,
   for (int k = 1; k < nr; ++k) {             // r=0 kept at phi=0; never queried
     const double r = k * tab.dr;
     aed.set_zero();
-    S.d2b->calc_aed(Zi, Zj, r, r * r, aed, 1.0);
     fd.set_zero();
-    S.d2b->calc_dXijdri(Zi, Zj, r, r * r, fd, 1.0);
+    S.d2b->calc_all(Zi, Zj, r, r * r, aed, fd, 1.0);
     double pv = 0.0, pd = 0.0;
     for (std::size_t c = 0; c < ndesc; ++c) {
       pv += w(c) * aed(c);
