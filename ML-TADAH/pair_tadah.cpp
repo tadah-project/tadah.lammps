@@ -39,6 +39,24 @@ See the README file in the top-level LAMMPS directory.
 
 using namespace LAMMPS_NS;
 
+/* Per-thread staged EXTERN potential -- see stage_extern() in the header.
+ * Function-local static so initialization order is a non-issue. */
+static std::shared_ptr<tadah::LammpsTadah>& staged_extern_slot()
+{
+  static thread_local std::shared_ptr<tadah::LammpsTadah> slot;
+  return slot;
+}
+
+void PairTadah::stage_extern(std::shared_ptr<tadah::LammpsTadah> pot)
+{
+  staged_extern_slot() = std::move(pot);
+}
+
+void PairTadah::clear_staged_extern()
+{
+  staged_extern_slot().reset();
+}
+
 PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
 {
   tadah::core::PeriodicTable::initialize();
@@ -1311,13 +1329,30 @@ void PairTadah::coeff(int narg, char **arg)
     utils::logmesg(lmp, "  Tadah! plugin version {}\n", bp.version);
   }
 
+  if (narg < 3)
+    error->all(FLERR,"Pair style tadah requires a potential file: pair_coeff * * <file> <elements...>");
+
   if (!allocated) allocate();
 
   // e.g. pair_coeff * * pot.tadah Ta Nb NULL
   map_element2type(narg - 3, arg + 3, true);
 
-  if (!lt)  // if not initialized yet as it could be init externally by a driver code
-    PairTadah::load(narg, arg);
+  if (strcmp(arg[2],"EXTERN") == 0) {
+    /* Sentinel filename: adopt a driver-provided potential. Precedence:
+     *  1. potential staged for this thread (whole-script input->file()
+     *     drivers -- see stage_extern());
+     *  2. lt pre-loaded via load() before this line executed (legacy
+     *     per-line driver pattern, kept for back-compat);
+     *  3. hard error. Previously this fell through to a CLI load of the
+     *     literal file "EXTERN" whose failure was silently ignored and
+     *     the null lt dereferenced below. */
+    if (staged_extern_slot()) lt = staged_extern_slot();
+    else if (!lt)
+      error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential");
+  } else if (!lt) {  // not initialized yet; it may also be init externally by a driver
+    if (!PairTadah::load(narg, arg))
+      error->all(FLERR,"pair_coeff: failed to load Tadah potential from '{}'", arg[2]);
+  }
 
   lt->initialize(narg, arg);
 

@@ -79,6 +79,19 @@ namespace LAMMPS_NS {
       bool load(tadah::core::Context&& ctx);        // move from r-value
       bool load(std::shared_ptr<tadah::LammpsTadah> shared_lt); // adopt shared
 
+      /* EXTERN staging. A driver that executes a whole script through
+       * LAMMPS's input->file() cannot interleave load() calls with the
+       * script's own pair_coeff lines, so it stages the shared potential
+       * here (per thread) before the run; every `pair_coeff * * EXTERN ...`
+       * executed on that thread then adopts it in coeff(). The slot lives
+       * outside the Pair object, so it survives `clear` (which destroys
+       * the Pair but not the staged potential); the driver clears it once
+       * the run finishes. Per-thread because drivers run one LAMMPS
+       * instance per worker thread/process with a strict
+       * stage -> run -> clear sequence. */
+      static void stage_extern(std::shared_ptr<tadah::LammpsTadah> pot);
+      static void clear_staged_extern();
+
       /* Phase 3 IFT-adjoint host accessor.
        *
        * HPO host needs to (a) toggle lt->capture_adjoint_state around the

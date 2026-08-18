@@ -5,6 +5,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- `PairTadah::stage_extern(std::shared_ptr<tadah::LammpsTadah>)` / `clear_staged_extern()`: per-thread staging slot for the `EXTERN` potential handoff. Drivers that execute whole scripts through LAMMPS's `input->file()` (where per-line `load()` interleaving is impossible) stage the candidate potential once before the run; every `pair_coeff * * EXTERN ...` the script executes adopts it in `coeff()`. The slot lives outside the Pair object, so it survives `clear` cycles; precedence in `coeff()` is staged slot, then a pre-loaded `lt` (the 1.4.0 per-line driver pattern, unchanged), then a hard error.
+
+### Fixed
+- `pair_coeff * * EXTERN` with no staged or pre-loaded potential, and `pair_coeff` with an unloadable potential file, now raise a clean LAMMPS error. Previously `coeff()` discarded `load()`'s failure return and dereferenced the null potential — a segfault (this is how the legacy `input->file()`-based MPI worker died on EXTERN scripts).
+
 ## [1.4.0] — 2026-07-14
 
 ### Added
