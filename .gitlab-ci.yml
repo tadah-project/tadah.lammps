@@ -98,7 +98,7 @@ lint_codespell:
         }
       fi
       export PATH="$HOME/.local/bin:$PATH"
-      codespell --skip='./build*,./external,./_deps,./tests/data,./tests/catch2,./ML-TADAH' --ignore-words-list='lamda,lamdas,nd,SEH' || true
+      codespell --skip='./build*,./external,./_deps,./tests/data,./ML-TADAH' --ignore-words-list='lamda,lamdas,nd,SEH' || true
   allow_failure: true
 
 # ---- Source-tarball release (tag-gated) --------------------------------
