@@ -1,7 +1,11 @@
 #include "catch2/catch.hpp"
 
+#include <algorithm>
 #include <cmath>
+#include <functional>
+#include <limits>
 #include <memory>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -10,18 +14,27 @@
 #include <tadah/tadah.lammps/lammps_tadah.h>
 
 using tadah::EamCollapseTables;
+using tadah::EamRadialTable;
 using tadah::LammpsTadah;
+using tadah::TableCertificate;
 
 namespace {
 
-/* Build the fixture potential exactly the way pair_coeff does.
+/* Build a fixture potential exactly the way pair_coeff does.
  * (unique_ptr: LammpsTadah is neither copyable nor movable.) */
-std::unique_ptr<LammpsTadah> make_kr_pure2b() {
+std::unique_ptr<LammpsTadah> load_pot(const std::string& path,
+                                      const std::string& symbol) {
     tadah::core::PeriodicTable::initialize();
-    const char* argv[] = {"*", "*", "tests_data/pots/kr_pure2b.tadah", "Kr"};
-    auto lt = std::make_unique<LammpsTadah>(4, const_cast<char**>(argv));
-    lt->initialize(4, const_cast<char**>(argv));
+    std::vector<std::string> args = {"*", "*", path, symbol};
+    std::vector<char*> argv;
+    for (auto& a : args) argv.push_back(&a[0]);
+    auto lt = std::make_unique<LammpsTadah>(4, argv.data());
+    lt->initialize(4, argv.data());
     return lt;
+}
+
+std::unique_ptr<LammpsTadah> make_kr_pure2b() {
+    return load_pot("tests_data/pots/kr_pure2b.tadah", "Kr");
 }
 
 tadah::core::t_type weights_of(const LammpsTadah& lt) {
@@ -30,6 +43,169 @@ tadah::core::t_type weights_of(const LammpsTadah& lt) {
     lt.c.get<tadah::core::t_type>("WEIGHTS", w);
     return w;
 }
+
+using Analytic = std::function<void(double, double&, double&)>;
+
+/* phi(r) and phi'(r) from the descriptor's SEPARATE value and derivative
+ * routines (calc_aed, calc_dXijdri), independent of the calc_all path the
+ * collapse samples. */
+Analytic independent_phi(const LammpsTadah& lt,
+                         const tadah::core::t_type& w) {
+    const std::size_t ndesc = lt.S.descriptor_size();
+    auto aed = std::make_shared<tadah::core::aed_type>(ndesc);
+    auto fd = std::make_shared<tadah::core::fd_type>(ndesc);
+    return [&lt, &w, aed, fd, ndesc](double r, double& v, double& d) {
+        const int Z = lt.Z[0];
+        aed->set_zero();
+        fd->set_zero();
+        lt.S.d2b->calc_aed(Z, Z, r, r * r, *aed, 1.0);
+        lt.S.d2b->calc_dXijdri(Z, Z, r, r * r, *fd, 1.0);
+        v = 0.0;
+        d = 0.0;
+        for (std::size_t c = 0; c < ndesc; ++c) {
+            v += w(c) * (*aed)(c);
+            d += w(c) * (*fd)(c, 0);
+        }
+    };
+}
+
+Analytic density_of(const LammpsTadah& lt) {
+    return [&lt](double r, double& v, double& d) {
+        lt.S.dmb->eam_density(lt.Z[0], lt.Z[0], r, v, d);
+    };
+}
+
+struct DenseCheck {
+    double max_rel_val = 0.0;
+    double max_rel_der = 0.0;
+    double r_val = 0.0;                    // where the worst errors are
+    double r_der = 0.0;
+};
+
+/* Samples per segment of dense_check(): a multiple of the certificate's 32
+ * check intervals, so the dense points include the certificate's own. */
+constexpr int kDensePerSegment = 128;
+/* Samples per segment holding a `hot` distance (a knot, a junction). */
+constexpr int kHotPerSegment = 4096;
+
+/* Independent re-check of a certificate. Every segment s of [r_lo, r_hi]
+ * is sampled at t = i / kDensePerSegment (and a segment holding one of the
+ * `hot` distances at t = i / kHotPerSegment), and the worst error is
+ * scaled by the certificate's unit-free floor
+ *   M(s) = max( max|f| on [rc/2, rc], max |f| over segments s' >= s )
+ * separately for the value and the derivative. The floor is taken over the
+ * table nodes and this check's own samples, a superset of the points the
+ * certificate uses, so it is never below the certificate's floor: a dense
+ * error above the certificate's max_rel_* is an error the certificate
+ * missed. */
+DenseCheck dense_check(const EamRadialTable& tab,
+                       const TableCertificate& cert, const Analytic& f,
+                       const std::vector<double>& hot = {}) {
+    const int s_lo = static_cast<int>(std::lround(cert.r_lo / tab.dr));
+    const double r_half = 0.5 * tab.rmax;
+
+    double run_v = 0.0, run_d = 0.0;       // max |f|, |f'| on [rc/2, rc]
+    for (int k = 1; k < tab.nr; ++k) {
+        if (k * tab.dr < r_half) continue;
+        run_v = std::max(run_v, std::fabs(tab.v[k]));
+        run_d = std::max(run_d, std::fabs(tab.d[k]));
+    }
+
+    DenseCheck out;
+    std::vector<double> av, ad, tv, td;
+    for (int s = tab.nr - 2; s >= s_lo; --s) {
+        bool is_hot = false;
+        for (double r : hot)
+            is_hot = is_hot || static_cast<int>(r / tab.dr) == s;
+        const int n = is_hot ? kHotPerSegment : kDensePerSegment;
+        av.assign(n, 0.0); ad.assign(n, 0.0);
+        tv.assign(n, 0.0); td.assign(n, 0.0);
+        run_v = std::max({run_v, std::fabs(tab.v[s]), std::fabs(tab.v[s + 1])});
+        run_d = std::max({run_d, std::fabs(tab.d[s]), std::fabs(tab.d[s + 1])});
+        for (int i = 1; i < n; ++i) {
+            const double r = (s + static_cast<double>(i) / n) * tab.dr;
+            f(r, av[i], ad[i]);
+            tab.eval(r, tv[i], td[i]);
+            run_v = std::max(run_v, std::fabs(av[i]));
+            run_d = std::max(run_d, std::fabs(ad[i]));
+        }
+        for (int i = 1; i < n; ++i) {
+            const double r = (s + static_cast<double>(i) / n) * tab.dr;
+            const double ev = std::fabs(tv[i] - av[i]) / run_v;
+            const double ed = std::fabs(td[i] - ad[i]) / run_d;
+            if (ev > out.max_rel_val) { out.max_rel_val = ev; out.r_val = r; }
+            if (ed > out.max_rel_der) { out.max_rel_der = ed; out.r_der = r; }
+        }
+    }
+    return out;
+}
+
+/* The certificate holds under dense_check(): the errors it states are
+ * bounds (and within the tolerance, see require_well_formed()). */
+void require_dense_within(const TableCertificate& cert,
+                          const DenseCheck& dense) {
+    INFO("certificate: value " << cert.max_rel_val << ", derivative "
+         << cert.max_rel_der << "; dense: value " << dense.max_rel_val
+         << " at r=" << dense.r_val << ", derivative " << dense.max_rel_der
+         << " at r=" << dense.r_der);
+    CHECK(dense.max_rel_val <= cert.max_rel_val);
+    CHECK(dense.max_rel_der <= cert.max_rel_der);
+}
+
+/* Worst error of segment s alone, sampled at t = i / kHotPerSegment and
+ * scaled by the floor over the certified range above it (from the table
+ * nodes and these samples). */
+DenseCheck segment_error(const EamRadialTable& tab, int s,
+                         const Analytic& f) {
+    double m_v = 0.0, m_d = 0.0;
+    for (int k = 1; k < tab.nr; ++k) {
+        if (k * tab.dr < 0.5 * tab.rmax && k < s) continue;
+        m_v = std::max(m_v, std::fabs(tab.v[k]));
+        m_d = std::max(m_d, std::fabs(tab.d[k]));
+    }
+    std::vector<double> ev(kHotPerSegment), ed(kHotPerSegment);
+    for (int i = 1; i < kHotPerSegment; ++i) {
+        const double r =
+            (s + static_cast<double>(i) / kHotPerSegment) * tab.dr;
+        double v, d, tv, td;
+        f(r, v, d);
+        tab.eval(r, tv, td);
+        m_v = std::max(m_v, std::fabs(v));
+        m_d = std::max(m_d, std::fabs(d));
+        ev[i] = std::fabs(tv - v);
+        ed[i] = std::fabs(td - d);
+    }
+    DenseCheck out;
+    for (int i = 1; i < kHotPerSegment; ++i) {
+        out.max_rel_val = std::max(out.max_rel_val, ev[i] / m_v);
+        out.max_rel_der = std::max(out.max_rel_der, ed[i] / m_d);
+    }
+    return out;
+}
+
+bool is_node(double r, double dr) {
+    const double k = r / dr;
+    return std::fabs(k - std::round(k)) < 1e-9 * std::max(1.0, k);
+}
+
+/* Structural checks every certificate must satisfy. */
+void require_well_formed(const TableCertificate& cert,
+                         const EamRadialTable& tab) {
+    INFO("r_lo=" << cert.r_lo << " r_hi=" << cert.r_hi << " n=" << cert.n
+         << " max_rel_val=" << cert.max_rel_val
+         << " max_rel_der=" << cert.max_rel_der);
+    REQUIRE(cert.tol == tadah::kCollapseRelTol);
+    REQUIRE(cert.r_hi == tab.rmax);
+    REQUIRE(cert.r_lo >= tab.dr * (1.0 - 1e-12));  // [0,dr) is extrapolated
+    REQUIRE(cert.r_lo < cert.r_hi);
+    REQUIRE(is_node(cert.r_lo, tab.dr));
+    REQUIRE(cert.n == static_cast<int>(
+        std::lround((cert.r_hi - cert.r_lo) / tab.dr)));
+    REQUIRE(cert.max_rel_val <= cert.tol);
+    REQUIRE(cert.max_rel_der <= cert.tol);
+}
+
+double quickstart_bcc_nn() { return 3.5 * std::sqrt(3.0) / 2.0; }  // in.ml
 
 } // namespace
 
@@ -57,7 +233,6 @@ TEST_CASE("build_pair2b_collapse: node-exact phi for pure-2B D2_Knot5",
      * bit-for-bit up to summation order (same loop as the builder). */
     const std::size_t ndesc = lt.S.descriptor_size();
     REQUIRE(w.size() == ndesc);
-    double max_v = 0.0;
     for (int k = 1; k < NR; k += NR / 37) {
         const double r = k * T.phi.dr;
         tadah::core::aed_type aed(ndesc);
@@ -73,11 +248,17 @@ TEST_CASE("build_pair2b_collapse: node-exact phi for pure-2B D2_Knot5",
         }
         REQUIRE(T.phi.v[k] == Approx(pv).margin(1e-14));
         REQUIRE(T.phi.d[k] == Approx(pd).margin(1e-14));
-        max_v = std::max(max_v, std::fabs(pv));
     }
 
-    /* Mid-node parity self-check recorded by the builder. */
-    REQUIRE(T.parity_err_phi < 1e-8 * std::max(1.0, max_v));
+    /* The builder's certificate: a table range in which every segment meets
+     * the relative tolerance for value and derivative (was: a max-abs
+     * mid-node error sampled on ~64 segments, with no range). */
+    require_well_formed(T.phi_cert, T.phi);
+    REQUIRE(T.rho_cert.n == 0);       // no density table, no certificate
+
+    /* ... and it holds under an independent dense check. */
+    require_dense_within(T.phi_cert, dense_check(T.phi, T.phi_cert,
+                                                 independent_phi(lt, w)));
 
     /* Hermite self-consistency: derivative returned by eval() must match a
      * central difference of the interpolated value (same segment). */
@@ -116,4 +297,613 @@ TEST_CASE("build_pair2b_collapse refuses on weight-size mismatch",
     REQUIRE_FALSE(tadah::build_pair2b_collapse(lt.S, w_bad, lt.Z[0], 512, T, why));
     REQUIRE_FALSE(T.valid);
     REQUIRE(why.find("weight count") != std::string::npos);
+}
+
+TEST_CASE("pair collapse: the quickstart LJ table is certified to rel tol 1e-9 "
+          "above r_lo, and r_lo is the smallest such node",
+          "[eam_collapse][pair2b][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                         tadah::kCollapseNR, T, why));
+    REQUIRE(tadah::kCollapseNR == 8192);
+    REQUIRE(tadah::kCollapseRelTol == 1e-9);
+    REQUIRE(T.phi.nr == tadah::kCollapseNR);
+    REQUIRE(T.phi.rmax == 6.5);
+
+    const TableCertificate& c = T.phi_cert;
+    require_well_formed(c, T.phi);
+
+    /* The table serves the quickstart's own lattice: its bcc nearest
+     * neighbours (3.03) lie well inside the certified range. */
+    REQUIRE(c.r_lo < 0.95 * quickstart_bcc_nn());
+    REQUIRE(c.max_rel_val > 0.0);
+    REQUIRE(c.max_rel_der > 0.0);
+
+    /* Independent dense check above r_lo. */
+    const Analytic f = independent_phi(lt, w);
+    require_dense_within(c, dense_check(T.phi, c, f));
+
+    /* r_lo is the upper node of the first failing segment: the check of the
+     * segment just below it exceeds the tolerance, and its error really is
+     * at the tolerance (for a smooth function the check's bound exceeds the
+     * error by less than 10 per cent, so r_lo is not set needlessly high). */
+    const int s_below = static_cast<int>(std::lround(c.r_lo / T.phi.dr)) - 1;
+    REQUIRE(s_below >= 1);
+    const auto below = segment_error(T.phi, s_below, f);
+    INFO("segment below r_lo: value " << below.max_rel_val
+         << ", derivative " << below.max_rel_der);
+    REQUIRE(std::max(below.max_rel_val, below.max_rel_der) > 0.9 * c.tol);
+    tadah::CollapseScratch scratch;
+    scratch.resize(lt.S.descriptor_size());
+    const auto phi_fn = [&](double r, double& v, double& d) {
+        tadah::phi_analytic(lt.S, T.w, lt.Z[0], lt.Z[0], r, scratch, v, d);
+    };
+    double floor_v = 0.0, floor_d = 0.0;   // the certificate's M(s_below)
+    for (int k = 1; k < T.phi.nr; ++k) {
+        if (k * T.phi.dr < 0.5 * T.phi.rmax && k < s_below) continue;
+        floor_v = std::max(floor_v, std::fabs(T.phi.v[k]));
+        floor_d = std::max(floor_d, std::fabs(T.phi.d[k]));
+    }
+    for (int s = s_below; s < T.phi.nr - 1; ++s) {
+        const tadah::SegmentCheck k = tadah::check_segment(T.phi, s, phi_fn);
+        REQUIRE(k.finite);
+        floor_v = std::max(floor_v, k.max_v);
+        floor_d = std::max(floor_d, k.max_d);
+    }
+    const tadah::SegmentCheck k_below =
+        tadah::check_segment(T.phi, s_below, phi_fn);
+    REQUIRE((k_below.err_v > c.tol * floor_v || k_below.err_d > c.tol * floor_d));
+
+    /* The table itself is useless at the r -> 0 head (the old diagnostic's
+     * 3e42 came from here): r^-12 changes 4096x across [dr, 2dr]. */
+    double tv, td, av, ad;
+    const double r_head = 1.5 * T.phi.dr;
+    T.phi.eval(r_head, tv, td);
+    f(r_head, av, ad);
+    REQUIRE(std::fabs(tv - av) > std::fabs(av));
+}
+
+TEST_CASE("pair collapse: the load-time report states the certified range, "
+          "the tolerance and the analytic clause",
+          "[eam_collapse][pair2b][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                         tadah::kCollapseNR, T, why));
+    const std::string s = tadah::format_collapse_report(T);
+    INFO(s);
+
+    const std::regex re(
+        R"(^pair-collapse fast path ON \(2b-only, nr=8192\): )"
+        R"(table certified for r in \[([^,\]]+), ([^\]]+)\] )"
+        R"(\(rel tol 1e-9: energy ([^,]+), force ([^)]+)\); )"
+        R"(analytic below r=(\S+)$)");
+    std::smatch m;
+    REQUIRE(std::regex_match(s, m, re));
+
+    const TableCertificate& c = T.phi_cert;
+    const double r_lo_txt = std::stod(m[1].str());
+    const double r_hi_txt = std::stod(m[2].str());
+    REQUIRE(r_lo_txt == Approx(c.r_lo).epsilon(1e-5));
+    REQUIRE(r_hi_txt == Approx(c.r_hi).epsilon(1e-5));
+    REQUIRE(std::stod(m[5].str()) == r_lo_txt);        // same boundary twice
+    /* achieved errors, one significant digit, never above the tolerance */
+    REQUIRE(std::stod(m[3].str()) == Approx(c.max_rel_val).epsilon(0.5));
+    REQUIRE(std::stod(m[4].str()) == Approx(c.max_rel_der).epsilon(0.5));
+    REQUIRE(std::stod(m[3].str()) <= 1e-9);
+    REQUIRE(std::stod(m[4].str()) <= 1e-9);
+    /* the old absolute diagnostic without a range is gone */
+    REQUIRE(s.find("parity") == std::string::npos);
+}
+
+TEST_CASE("collapse_phi: analytic below r_lo, the table from r_lo up",
+          "[eam_collapse][pair2b][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                         tadah::kCollapseNR, T, why));
+    const double r_lo = T.phi_cert.r_lo;
+    const double dr = T.phi.dr;
+    const Analytic f = independent_phi(lt, w);
+
+    tadah::CollapseScratch scratch;
+    scratch.resize(lt.S.descriptor_size());
+
+    for (double r : {0.5 * dr, 1.5 * dr, 0.1, 0.5 * r_lo, r_lo - 0.25 * dr,
+                     std::nextafter(r_lo, 0.0)}) {
+        CAPTURE(r);
+        REQUIRE(r < r_lo);
+        double v, d, pv, pd, iv, id;
+        tadah::collapse_phi(T, lt.S, r, scratch, v, d);
+        tadah::phi_analytic(lt.S, T.w, lt.Z[0], lt.Z[0], r, scratch, pv, pd);
+        REQUIRE(v == pv);
+        REQUIRE(d == pd);
+        f(r, iv, id);
+        REQUIRE(v == Approx(iv).epsilon(1e-13));
+        REQUIRE(d == Approx(id).epsilon(1e-13));
+    }
+    for (double r : {r_lo, r_lo + dr / 3.0, 0.5 * (r_lo + T.phi.rmax),
+                     T.phi.rmax}) {
+        CAPTURE(r);
+        double v, d, tv, td;
+        tadah::collapse_phi(T, lt.S, r, scratch, v, d);
+        T.phi.eval(r, tv, td);
+        REQUIRE(v == tv);
+        REQUIRE(d == td);
+    }
+
+    /* The table nodes come from the same helper as the fallback; the top
+     * node holds the limit from below at the cutoff. */
+    for (int k : {1, 17, 4096, tadah::kCollapseNR - 1}) {
+        double pv, pd;
+        const double r = k == tadah::kCollapseNR - 1
+            ? std::nextafter(T.phi.rmax, 0.0) : k * dr;
+        tadah::phi_analytic(lt.S, T.w, lt.Z[0], lt.Z[0], r, scratch, pv, pd);
+        REQUIRE(T.phi.v[k] == pv);
+        REQUIRE(T.phi.d[k] == pd);
+    }
+}
+
+TEST_CASE("pair collapse: a Cut_Cos taper is certified up to the cutoff "
+          "through the floor",
+          "[eam_collapse][pair2b][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_cutcos.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                         tadah::kCollapseNR, T, why));
+    const TableCertificate& c = T.phi_cert;
+    require_well_formed(c, T.phi);
+    REQUIRE(c.r_lo < 0.95 * quickstart_bcc_nn());
+
+    const Analytic f = independent_phi(lt, w);
+    require_dense_within(c, dense_check(T.phi, c, f));
+
+    /* phi and phi' vanish at the taper, so a pure pointwise relative error
+     * fails in the top segment; the floor keeps it certified. */
+    const int s_top = T.phi.nr - 2;
+    const double r_mid = (s_top + 0.5) * T.phi.dr;
+    double tv, td, av, ad;
+    T.phi.eval(r_mid, tv, td);
+    f(r_mid, av, ad);
+    REQUIRE(std::fabs(av) < 1e-6);
+    REQUIRE(std::fabs(tv - av) > c.tol * std::fabs(av));
+}
+
+TEST_CASE("EAM collapse: D2_LJ + DM_REAM certifies phi and rho, with "
+          "analytic density below the rho range",
+          "[eam_collapse][eam][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_ream.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    REQUIRE(lt.initmb);
+    REQUIRE(lt.S.dmb->eam_form());
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE(tadah::build_eam_collapse(lt.S, w, lt.Z[0],
+                                      tadah::kCollapseNR, T, why));
+    REQUIRE(T.valid);
+    REQUIRE(T.has_mb);
+    REQUIRE(T.rho.rmax == 6.0);
+
+    require_well_formed(T.phi_cert, T.phi);
+    require_well_formed(T.rho_cert, T.rho);
+
+    require_dense_within(T.phi_cert, dense_check(T.phi, T.phi_cert,
+                                                 independent_phi(lt, w)));
+    /* The density Blips (centres 1..4, eta 1) are only C^2 at their knots,
+     * the integers 1..5: sample those segments finely. */
+    const Analytic rho = density_of(lt);
+    require_dense_within(T.rho_cert,
+                         dense_check(T.rho, T.rho_cert, rho,
+                                     {1.0, 2.0, 3.0, 4.0, 5.0}));
+
+    /* collapse_rho: eam_density below the rho range, the table above. */
+    const double r_lo = T.rho_cert.r_lo;
+    for (double r : {0.5 * T.rho.dr, 0.5 * r_lo, std::nextafter(r_lo, 0.0)}) {
+        CAPTURE(r);
+        REQUIRE(r < r_lo);
+        double v, d, av, ad;
+        tadah::collapse_rho(T, lt.S, r, v, d);
+        rho(r, av, ad);
+        REQUIRE(v == av);
+        REQUIRE(d == ad);
+    }
+    for (double r : {r_lo, r_lo + 0.3 * T.rho.dr, 0.5 * (r_lo + T.rho.rmax),
+                     T.rho.rmax}) {
+        CAPTURE(r);
+        double v, d, tv, td;
+        tadah::collapse_rho(T, lt.S, r, v, d);
+        T.rho.eval(r, tv, td);
+        REQUIRE(v == tv);
+        REQUIRE(d == td);
+    }
+
+    const std::string s = tadah::format_collapse_report(T);
+    INFO(s);
+    REQUIRE(s.rfind("EAM-collapse fast path ON (nr=8192): ", 0) == 0);
+    REQUIRE(s.find("phi table certified for r in [") != std::string::npos);
+    REQUIRE(s.find("rho table certified for r in [") != std::string::npos);
+    REQUIRE(s.find("rel tol 1e-9") != std::string::npos);
+    REQUIRE(s.find("analytic below r=") != std::string::npos);
+    REQUIRE(s.find("parity") == std::string::npos);
+}
+
+TEST_CASE("certify_table: r_lo is the upper node of the highest failing "
+          "segment",
+          "[eam_collapse][certificate]") {
+    constexpr int NR = 1025;
+    const double rmax = 4.0;
+    const double tol = tadah::kCollapseRelTol;
+
+    SECTION("a cubic is reproduced exactly: certified down to dr") {
+        const Analytic f = [](double r, double& v, double& d) {
+            v = 1.0 + r - 0.5 * r * r + 0.25 * r * r * r;
+            d = 1.0 - r + 0.75 * r * r;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        const TableCertificate c = tadah::certify_table(tab, f, tol);
+        REQUIRE(c.r_lo == tab.dr);
+        REQUIRE(c.r_hi == rmax);
+        REQUIRE(c.n == NR - 2);
+        REQUIRE(c.max_rel_val <= tol);
+        REQUIRE(c.max_rel_der <= tol);
+    }
+
+    SECTION("a kink stops the scan at its segment") {
+        /* |r - r_k|^3: third derivative jumps at r_k (placed at t = 0.4 of
+         * segment 700); cubic elsewhere, so every other segment is exact. */
+        EamRadialTable probe;
+        tadah::sample_table(probe, rmax, NR, [](double, double& v, double& d) {
+            v = 0.0; d = 0.0; });
+        const double r_k = (700 + 0.4) * probe.dr;
+        const Analytic f = [r_k](double r, double& v, double& d) {
+            const double x = r - r_k;
+            v = 1.0 + std::fabs(x) * x * x;
+            d = 3.0 * std::fabs(x) * x;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        const TableCertificate c = tadah::certify_table(tab, f, 1e-10);
+        REQUIRE(c.r_lo == 701 * tab.dr);
+        REQUIRE(c.n == NR - 1 - 701);
+    }
+
+    SECTION("a C^2 knot next to a node is bounded, not missed") {
+        /* f = r + (r - r_k)_+^3: the third derivative jumps at r_k, placed
+         * at t = 0.95 of segment 700, next to its upper node. f' grows with
+         * r, so the floor is f'(rmax) everywhere. The derivative error
+         * peaks in a narrow band next to the knot; the check must see it. */
+        EamRadialTable probe;
+        tadah::sample_table(probe, rmax, NR, [](double, double& v, double& d) {
+            v = 0.0; d = 0.0; });
+        const int s_k = 700;
+        const double r_k = (s_k + 0.95) * probe.dr;
+        const Analytic f = [r_k](double r, double& v, double& d) {
+            const double x = std::max(r - r_k, 0.0);
+            v = r + x * x * x;
+            d = 1.0 + 3.0 * x * x;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        double f_top, floor_d;
+        f(std::nextafter(rmax, 0.0), f_top, floor_d);
+        double true_der = 0.0;                     // dense, floored
+        for (int i = 1; i < 20000; ++i) {
+            const double r = (s_k + i / 20000.0) * tab.dr;
+            double v, d, tv, td;
+            f(r, v, d);
+            tab.eval(r, tv, td);
+            true_der = std::max(true_der, std::fabs(td - d) / floor_d);
+        }
+        CAPTURE(true_der);
+
+        /* Below the knot segment's true error: the scan stops there. */
+        const TableCertificate strict =
+            tadah::certify_table(tab, f, true_der / 1.5);
+        REQUIRE(strict.r_lo == (s_k + 1) * tab.dr);
+
+        /* Above it: certified down to dr, and the stated error bounds the
+         * true one. */
+        const TableCertificate loose =
+            tadah::certify_table(tab, f, 2.5 * true_der);
+        REQUIRE(loose.r_lo == tab.dr);
+        REQUIRE(loose.max_rel_der >= true_der);
+    }
+
+    SECTION("a non-finite analytic value fails its segment") {
+        const double r_nan = 2.0 + 0.3 * rmax / (NR - 1);
+        const Analytic f = [r_nan](double r, double& v, double& d) {
+            if (r < r_nan) {
+                v = std::numeric_limits<double>::quiet_NaN();
+                d = v;
+                return;
+            }
+            v = 2.0 - r;
+            d = -1.0;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        const TableCertificate c = tadah::certify_table(tab, f, tol);
+        const int s_nan = static_cast<int>(r_nan / tab.dr);
+        REQUIRE(c.r_lo == (s_nan + 1) * tab.dr);
+        REQUIRE(c.r_lo < c.r_hi);
+    }
+
+    SECTION("a failing top segment leaves an empty certificate") {
+        const double r_k = rmax - 0.5 * rmax / (NR - 1);
+        const Analytic f = [r_k](double r, double& v, double& d) {
+            const double x = r - r_k;
+            v = std::fabs(x) * x * x;
+            d = 3.0 * std::fabs(x) * x;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        const TableCertificate c = tadah::certify_table(tab, f, tol);
+        REQUIRE(c.r_lo == c.r_hi);
+        REQUIRE(c.n == 0);
+        REQUIRE(c.empty());
+    }
+}
+
+TEST_CASE("build_pair2b_collapse refuses a table whose top segment misses "
+          "the tolerance",
+          "[eam_collapse][pair2b][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_blip_uncertifiable.tadah", "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE_FALSE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                               tadah::kCollapseNR, T, why));
+    REQUIRE_FALSE(T.valid);
+    INFO(why);
+    /* The certified range is one interval ending at the cutoff, so the
+     * top segment decides; the segments below it may well pass. */
+    REQUIRE(why == "phi table misses rel tol 1e-9 already in its top "
+                   "segment, just below the cutoff r=6.5");
+    REQUIRE(T.phi_cert.empty());
+    const Analytic f = independent_phi(lt, w);
+    /* the bump covers the top two segments; the one below them is exact */
+    const auto below = segment_error(T.phi, T.phi.nr - 4, f);
+    REQUIRE(std::max(below.max_rel_val, below.max_rel_der) <= T.phi_cert.tol);
+}
+
+TEST_CASE("build_eam_collapse refuses a model whose rho table misses the "
+          "tolerance in its top segment",
+          "[eam_collapse][eam][certificate]") {
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_ream_rho_uncertifiable.tadah",
+                           "Ta");
+    LammpsTadah& lt = *lt_ptr;
+    REQUIRE(lt.initmb);
+    REQUIRE(lt.S.dmb->eam_form());
+    const auto w = weights_of(lt);
+
+    EamCollapseTables T;
+    std::string why;
+    REQUIRE_FALSE(tadah::build_eam_collapse(lt.S, w, lt.Z[0],
+                                            tadah::kCollapseNR, T, why));
+    REQUIRE_FALSE(T.valid);
+    INFO(why);
+    REQUIRE(why == "rho table misses rel tol 1e-9 already in its top "
+                   "segment, just below the cutoff r=6");
+    REQUIRE(T.rho_cert.empty());
+    require_well_formed(T.phi_cert, T.phi);   // the phi table was fine
+}
+
+TEST_CASE("sample_table: the top node holds the limit from below at the "
+          "cutoff",
+          "[eam_collapse][pair2b][certificate]") {
+    /* Cut_Dummy is 0 AT rc, so a D2 evaluated at r = rc returns 0 while the
+     * pair term just below rc is phi(rc-) != 0 (the quickstart: -0.0137).
+     * A top node sampled at rc made the top segment interpolate towards 0
+     * and gave pairs in [rc - dr, rc) forces of order |phi(rc-)| / dr. The
+     * round-up fixture adds the case where k*dr at k = nr-1 overshoots rc. */
+    for (const char* pot : {"tests_data/pots/ta_lj_quickstart.tadah",
+                            "tests_data/pots/ta_lj_rc_roundup.tadah"}) {
+        CAPTURE(pot);
+        auto lt_ptr = load_pot(pot, "Ta");
+        LammpsTadah& lt = *lt_ptr;
+        const auto w = weights_of(lt);
+        const double rc = lt.S.d2b->get_rcut();
+        const int nr = tadah::kCollapseNR;
+
+        EamCollapseTables T;
+        std::string why;
+        REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0], nr, T, why));
+        REQUIRE(T.phi.rmax == rc);
+
+        const Analytic f = independent_phi(lt, w);
+        double at_rc, at_rc_d, below, below_d;
+        f(rc, at_rc, at_rc_d);
+        f(std::nextafter(rc, 0.0), below, below_d);
+        REQUIRE(at_rc == 0.0);            // Cut_Dummy: the jump at rc
+        REQUIRE(below < -1e-3);
+        REQUIRE(T.phi.v[nr - 1] == Approx(below).epsilon(1e-14));
+        REQUIRE(T.phi.d[nr - 1] == Approx(below_d).epsilon(1e-14));
+
+        /* ... so the top segment is certified and a pair in it matches the
+         * pair term. */
+        require_well_formed(T.phi_cert, T.phi);
+        const double r = rc - 0.3 * T.phi.dr;
+        double tv, td, av, ad;
+        T.phi.eval(r, tv, td);
+        f(r, av, ad);
+        REQUIRE(tv == Approx(av).epsilon(1e-12));
+        REQUIRE(td == Approx(ad).epsilon(1e-9));
+    }
+    /* the round-up fixture's premise */
+    const double rc_up = 7.999196555374454;
+    REQUIRE((tadah::kCollapseNR - 1) * (rc_up / (tadah::kCollapseNR - 1)) > rc_up);
+}
+
+TEST_CASE("pair collapse: a C^2 knot or cutoff junction next to a node is "
+          "bounded, not missed",
+          "[eam_collapse][pair2b][certificate]") {
+    /* The error of a cubic Hermite segment that holds a C^2 point peaks in
+     * a narrow band next to it; with the point next to a node, three check
+     * points per segment understated the force error up to 3.5 times and
+     * certified segments 1.8-2.8 times over the tolerance. */
+    struct Case {
+        const char* pot;
+        std::vector<double> hot;        // the C^2 points
+    };
+    const double eta_inv = 1.0 / 1.6408253205128203;
+    const double c = 5.0001672567452085;
+    for (const Case& k :
+         {Case{"tests_data/pots/ta_lj_polys_junction.tadah",
+               {9.00060436239767 - 1.0}},
+          Case{"tests_data/pots/ta_blip_knot_near_node.tadah",
+               {c - 2 * eta_inv, c - eta_inv, c, c + eta_inv,
+                c + 2 * eta_inv}}}) {
+        CAPTURE(k.pot);
+        auto lt_ptr = load_pot(k.pot, "Ta");
+        LammpsTadah& lt = *lt_ptr;
+        const auto w = weights_of(lt);
+
+        EamCollapseTables T;
+        std::string why;
+        REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
+                                             tadah::kCollapseNR, T, why));
+        INFO(tadah::format_collapse_report(T));
+        require_well_formed(T.phi_cert, T.phi);
+        /* the fixtures' premise: each C^2 point sits next to a node */
+        for (double r : k.hot) {
+            const double t = r / T.phi.dr - std::floor(r / T.phi.dr);
+            REQUIRE(t > 0.94);
+        }
+        require_dense_within(T.phi_cert,
+                             dense_check(T.phi, T.phi_cert,
+                                         independent_phi(lt, w), k.hot));
+    }
+}
+
+TEST_CASE("check_segment bounds the segment error wherever a C^2 knot sits, "
+          "and closely for a smooth function",
+          "[eam_collapse][certificate]") {
+    constexpr int NR = 257;
+    const double rmax = 2.0;
+    const int s = 100;
+    EamRadialTable probe;
+    tadah::sample_table(probe, rmax, NR, [](double, double& v, double& d) {
+        v = 0.0; d = 0.0; });
+    const double dr = probe.dr;
+
+    /* Worst |table - f| and |table' - f'| over segment s, 20000 points. */
+    const auto true_error = [&](const EamRadialTable& tab, const Analytic& f,
+                                double& ev, double& ed) {
+        ev = ed = 0.0;
+        for (int i = 1; i < 20000; ++i) {
+            const double r = (s + i / 20000.0) * dr;
+            double v, d, tv, td;
+            f(r, v, d);
+            tab.eval(r, tv, td);
+            ev = std::max(ev, std::fabs(tv - v));
+            ed = std::max(ed, std::fabs(td - d));
+        }
+    };
+
+    SECTION("a knot anywhere in the segment, alone or with a smooth part") {
+        for (double lam : {0.0, 1e-3, -1e-3, 1.0, -1.0}) {
+            for (int j = 0; j <= 200; ++j) {
+                /* knot positions across the segment, both ends included */
+                const double tk = 0.0005 + 0.999 * j / 200.0;
+                const double r_k = (s + tk) * dr;
+                const double r_0 = s * dr;
+                const Analytic f = [r_k, r_0, lam](double r, double& v,
+                                                   double& d) {
+                    const double x = std::max(r - r_k, 0.0);
+                    const double y = (r - r_0) / 0.0078125;   // 1 / dr
+                    v = x * x * x + lam * 1e-6 * y * y * y * y;
+                    d = 3.0 * x * x + lam * 4e-6 * y * y * y / 0.0078125;
+                };
+                EamRadialTable tab;
+                tadah::sample_table(tab, rmax, NR, f);
+                const tadah::SegmentCheck k = tadah::check_segment(tab, s, f);
+                double ev, ed;
+                true_error(tab, f, ev, ed);
+                CAPTURE(lam, tk, ev, ed, k.err_v, k.err_d);
+                REQUIRE(k.finite);
+                REQUIRE(ev <= k.err_v);
+                REQUIRE(ed <= k.err_d);
+                REQUIRE(k.err_d <= 2.1 * ed);   // conservative, not blind
+            }
+        }
+    }
+
+    SECTION("a knot next to a part that is steep on the scale of a segment") {
+        /* f = x^n + lam dr^n exp(-k (r - s dr) / dr), n = 2 (C^1) or 3
+         * (C^2): the exponential falls by e^-k across the segment. Its
+         * error is strongly curved between check points, and the linear
+         * extrapolation alone falls short of the peak next to the knot
+         * (by up to 1.6x for k = 20); the curvature allowance covers it.
+         * (The bound assumes f smooth on the scale of the check spacing,
+         * dr / 32, so k stays well below 32.) */
+        const double r_0 = s * dr;
+        for (int n : {2, 3}) {
+            for (double k : {10.0, 20.0}) {
+                for (double lam : {1e-4, 1e-3, 1e-2}) {
+                    for (int j = 0; j <= 200; ++j) {
+                        const double tk = 0.0005 + 0.999 * j / 200.0;
+                        const double r_k = (s + tk) * dr;
+                        const double amp = lam * std::pow(dr, n);
+                        const Analytic f = [=](double r, double& v,
+                                               double& d) {
+                            const double x = std::max(r - r_k, 0.0);
+                            const double y = std::max((r - r_0) / dr, -1.0);
+                            const double e = amp * std::exp(-k * y);
+                            v = std::pow(x, n) + e;
+                            d = n * std::pow(x, n - 1) - k / dr * e;
+                        };
+                        EamRadialTable tab;
+                        tadah::sample_table(tab, rmax, NR, f);
+                        const tadah::SegmentCheck c =
+                            tadah::check_segment(tab, s, f);
+                        double ev, ed;
+                        true_error(tab, f, ev, ed);
+                        CAPTURE(n, k, lam, tk, ev, ed, c.err_v, c.err_d);
+                        REQUIRE(c.finite);
+                        REQUIRE(ev <= c.err_v);
+                        REQUIRE(ed <= c.err_d);
+                    }
+                }
+            }
+        }
+    }
+
+    SECTION("a smooth function: the bound is within 10 per cent") {
+        const Analytic f = [](double r, double& v, double& d) {
+            v = std::exp(-3.0 * r);
+            d = -3.0 * v;
+        };
+        EamRadialTable tab;
+        tadah::sample_table(tab, rmax, NR, f);
+        const tadah::SegmentCheck k = tadah::check_segment(tab, s, f);
+        double ev, ed;
+        true_error(tab, f, ev, ed);
+        CAPTURE(ev, ed, k.err_v, k.err_d);
+        REQUIRE(ev <= k.err_v);
+        REQUIRE(ed <= k.err_d);
+        REQUIRE(k.err_v <= 1.1 * ev);
+        REQUIRE(k.err_d <= 1.1 * ed);
+    }
 }

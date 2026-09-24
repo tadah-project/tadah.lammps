@@ -1,0 +1,21 @@
+# The docs quickstart D2_LJ potential with a Cut_Cos taper instead of
+# Cut_Dummy: phi and phi' go to zero at the cutoff (tapered-cutoff floor).
+ATOM     Ta
+BIAS     false
+DIMER     false     0     false
+EWEIGHT     1.0
+FWEIGHT     1.0
+INIT2B     true
+INITMB     false
+LAMBDA     0
+MODEL     M_KRR     Kern_Linear     1
+NORM     false
+OALGO     1
+RCTYPE2B     Cut_Cos
+RCUT2B     6.5
+SWEIGHT     1.0
+TYPE2B     D2_LJ     Ta     Ta
+UNCERTAINTY     false
+WATOM     73
+WEIGHTS     14.204213349318765225     2604.396965191186154698
+
