@@ -135,13 +135,16 @@ public:
      * Resolved in PairTadah::coeff: when eam_fast is true the pair style
      * runs compute_2b_mb_half_eamfast() with the tables below and scalar
      * (1-double) forward/reverse comm instead of descriptor-vector comm.
-     * eam_rho_bar/eam_fp are per-atom scratch, resized in compute; like
+     * eam_rho_bar/eam_fp are per-atom scratch, resized in compute;
+     * eam_scratch holds the descriptor buffers for the analytic pair term
+     * below a table's certified range, sized in setup_eam_fastpath. Like
      * aeds/rhos they make this object shareable across sims only when the
      * sims run sequentially (per-thread sharing). */
     EamCollapseTables   eam_tables;
     bool                eam_fast{false};
     std::vector<double> eam_rho_bar;
     std::vector<double> eam_fp;
+    CollapseScratch     eam_scratch;
 
     /* Phase 3 IFT-adjoint snapshot. See AdjointSnapshot doc above.
      * Default off: production MD pays one predicted-false branch per

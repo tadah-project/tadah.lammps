@@ -506,11 +506,13 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
  * For a linear model E_i = w . aed_i, the radial 2b block collapses to a
  * scalar pair function phi(r) and an EAM-form mb block to F(rho_bar_i),
  * rho_bar_i = sum_j rho(r_ij). phi/rho are cubic-Hermite tables built in
- * setup_eam_fastpath() by sampling the descriptors' own calc routines;
- * F, F' are evaluated analytically per atom (DM_Base::eam_embed) so no
- * embedding table range needs guessing. Structure mirrors pair_eam:
- * pass 1 accumulates rho_bar (reverse comm, 1 double), embedding per local
- * atom (forward comm of F', 1 double), pass 2 central pair forces.       */
+ * setup_eam_fastpath() by sampling the descriptors' own calc routines and
+ * used inside their certified ranges; below a table's range the pair term
+ * is evaluated analytically (tadah::collapse_phi / collapse_rho). F, F'
+ * are evaluated analytically per atom (DM_Base::eam_embed) so no embedding
+ * table range needs guessing. Structure mirrors pair_eam: pass 1
+ * accumulates rho_bar (reverse comm, 1 double), embedding per local atom
+ * (forward comm of F', 1 double), pass 2 central pair forces.            */
 void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
 {
   int i,j,ii,jj,jnum;
@@ -531,6 +533,7 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
   firstneigh = list->firstneigh;
 
   const tadah::EamCollapseTables &T = lt->eam_tables;
+  tadah::CollapseScratch &scratch = lt->eam_scratch;
   const double rc_phi = T.phi.rmax;
   const double rc_rho = T.rho.rmax;
 
@@ -556,7 +559,8 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
       rij_sq = delx*delx + dely*dely + delz*delz;
       if (rij_sq >= rc_rho*rc_rho) continue;
       const double rij = sqrt(rij_sq);
-      const double rho_r = T.rho.eval_val(rij);
+      double rho_r, rhop_unused;
+      tadah::collapse_rho(T, lt->S, rij, rho_r, rhop_unused);
       lt->eam_rho_bar[i] += rho_r;
       if (newton_pair || j < nlocal) lt->eam_rho_bar[j] += rho_r;
     }
@@ -576,7 +580,8 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
 
   comm->forward_comm(this);
 
-  // pass 2: central pair forces from the same Hermite segments
+  // pass 2: central pair forces (table segments inside the certified
+  // ranges, analytic below them)
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     xtmp = x[i][0]; ytmp = x[i][1]; ztmp = x[i][2];
@@ -593,11 +598,11 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
       const double rij = sqrt(rij_sq);
 
       double phi = 0.0, phip = 0.0;
-      if (rij < rc_phi) T.phi.eval(rij, phi, phip);
+      if (rij < rc_phi) tadah::collapse_phi(T, lt->S, rij, scratch, phi, phip);
       double rhop = 0.0;
       if (rij < rc_rho) {
         double rv;
-        T.rho.eval(rij, rv, rhop);
+        tadah::collapse_rho(T, lt->S, rij, rv, rhop);
       }
 
       const double psip = phip + (lt->eam_fp[i] + lt->eam_fp[j]) * rhop;
@@ -622,10 +627,12 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
 
 /* Pair-collapsed fast path (pure 2b, INITMB false): compute_2b with the
  * per-pair descriptor recompute + weight dot products replaced by a single
- * Hermite lookup, phi(r) and phi'(r) from the same segment. The degenerate
- * F==0, rho==0 EAM collapse: one half-list pass, no ghost comm. Gate
- * excludes bias, so no per-species intercept block. Adjoint capture is
- * routed to compute_2b in compute() (safe: neither kernel does pair comm). */
+ * Hermite lookup, phi(r) and phi'(r) from the same segment, inside the
+ * table's certified range; below it the pair term is evaluated
+ * analytically (tadah::collapse_phi). The degenerate F==0, rho==0 EAM
+ * collapse: one half-list pass, no ghost comm. Gate excludes bias, so no
+ * per-species intercept block. Adjoint capture is routed to compute_2b in
+ * compute() (safe: neither kernel does pair comm). */
 void PairTadah::compute_2b_fast(int eflag, int vflag)
 {
   int i,j,ii,jj,jnum;
@@ -645,8 +652,11 @@ void PairTadah::compute_2b_fast(int eflag, int vflag)
   numneigh = list->numneigh;
   firstneigh = list->firstneigh;
 
-  const tadah::EamRadialTable &phi_tab = lt->eam_tables.phi;
-  const double rc_phi_sq = phi_tab.rmax * phi_tab.rmax;
+  const tadah::EamCollapseTables &T = lt->eam_tables;
+  tadah::CollapseScratch &scratch = lt->eam_scratch;
+  /* The table stands in for r < rc (its top node is the limit from below);
+   * at r == rc a cutoff such as Cut_Dummy is already 0, so skip it. */
+  const double rc_phi_sq = T.phi.rmax * T.phi.rmax;
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -660,11 +670,11 @@ void PairTadah::compute_2b_fast(int eflag, int vflag)
       dely = ytmp - x[j][1];
       delz = ztmp - x[j][2];
       rij_sq = delx*delx + dely*dely + delz*delz;
-      if (rij_sq > lt->cutoff_max_sq || rij_sq > rc_phi_sq) continue;
+      if (rij_sq > lt->cutoff_max_sq || rij_sq >= rc_phi_sq) continue;
       const double rij = sqrt(rij_sq);
 
       double phi, phip;
-      phi_tab.eval(rij, phi, phip);
+      tadah::collapse_phi(T, lt->S, rij, scratch, phi, phip);
       const double fpair = -phip / rij;
 
       f[i][0] += delx*fpair;
@@ -1259,8 +1269,12 @@ void PairTadah::settings(int narg, char **arg)
 
 /* Resolve the EAM-collapse fast path gate and build the phi/rho tables.
  * Called from coeff() after lt->initialize(). Controlled by the EAMFAST
- * config key (BOOL, default true via the blueprint); falls back silently to
- * the generic path when the model/descriptor combination does not collapse. */
+ * config key (BOOL, default true via the blueprint). Falls back silently to
+ * the generic path when the model/descriptor combination does not collapse
+ * (the gate below); when the builder refuses (e.g. a table misses the
+ * collapse tolerance already in its top segment, so it has no certified
+ * range) the reason is logged and the generic path kept.
+ * On success the log states each table's certified range and tolerance. */
 void PairTadah::setup_eam_fastpath()
 {
   lt->eam_fast = false;
@@ -1285,6 +1299,7 @@ void PairTadah::setup_eam_fastpath()
 
   if (lt->eam_tables.valid &&
       lt->eam_tables.has_mb == lt->initmb) { // same potential object: reuse
+    lt->eam_scratch.resize(lt->S.descriptor_size());
     lt->eam_fast = true;
     return;
   }
@@ -1295,26 +1310,23 @@ void PairTadah::setup_eam_fastpath()
   lt->c.get<tadah::core::t_type>("WEIGHTS", w);
 
   std::string why;
-  constexpr int NR = 8192;
+  const int NR = tadah::kCollapseNR;
   const bool ok = lt->initmb
       ? tadah::build_eam_collapse(lt->S, w, lt->Z[0], NR, lt->eam_tables, why)
       : tadah::build_pair2b_collapse(lt->S, w, lt->Z[0], NR, lt->eam_tables, why);
   if (!ok) {
     if (comm->me == 0)
-      utils::logmesg(lmp, "  Tadah! collapse fast path unavailable: {}\n", why);
+      utils::logmesg(lmp, "  Tadah! collapse fast path unavailable: {}; "
+                          "using the generic kernel\n", why);
     return;
   }
+  /* Scratch for the analytic pair term below the certified range (the fast
+   * kernels are serial, one buffer per potential object). */
+  lt->eam_scratch.resize(lt->S.descriptor_size());
   lt->eam_fast = true;
-  if (comm->me == 0) {
-    if (lt->initmb)
-      utils::logmesg(lmp,
-          "  Tadah! EAM-collapse fast path ON (nr={}, parity dphi={:.3e} drho={:.3e})\n",
-          NR, lt->eam_tables.parity_err_phi, lt->eam_tables.parity_err_rho);
-    else
-      utils::logmesg(lmp,
-          "  Tadah! pair-collapse fast path ON (2b-only, nr={}, parity dphi={:.3e})\n",
-          NR, lt->eam_tables.parity_err_phi);
-  }
+  if (comm->me == 0)
+    utils::logmesg(lmp, "  Tadah! {}\n",
+                   tadah::format_collapse_report(lt->eam_tables));
 }
 
 // REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
