@@ -1,7 +1,8 @@
 ALPHA      1.0
+ATOM      Ta
 BETA      1.0
 BIAS      true
-CGRID2B     -1     4     1.0     5.3
+CGRID2B     LIN     4     1.0     5.3
 DIMER     false     0     false
 EWEIGHT      1.0
 FWEIGHT      1.0
@@ -15,8 +16,8 @@ NSTDEV     0     2.79425471     2.914508228     1.43784523     0.3225202259
 NUMERIC      10
 RCTYPE2B      Cut_Cos
 RCUT2B      5.3
-SGRID2B     -2     4     0.1     1.0
+SGRID2B     GEOM     4     0.1     1.0
 SWEIGHT      1.0
-TYPE2B      D2_Blip
+TYPE2B      D2_Blip     4     4     *     *
 WEIGHTS     -4.415741551     0.4218953511     -0.3750771288     -0.06328812171     -0.05230011264
 
