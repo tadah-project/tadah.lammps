@@ -57,6 +57,7 @@ void build_sub_objects(LammpsTadah& self)
 /*-------------------------------------------*/
 LammpsTadah::LammpsTadah(core::Context&& ctx)
     : c(std::move(ctx)),
+      embf0_declared(c.has_stored("EMBF0")),   // before S materialises it
       S(c)                     // DC_Selector may need the Context early
 {
     build_sub_objects(*this);
@@ -67,6 +68,7 @@ LammpsTadah::LammpsTadah(core::Context&& ctx)
 /*-------------------------------------------*/
 LammpsTadah::LammpsTadah(const core::Context& ctx)
     : c(ctx),                 // one copy
+      embf0_declared(c.has_stored("EMBF0")),   // before S materialises it
       S(c)
 {
     build_sub_objects(*this);

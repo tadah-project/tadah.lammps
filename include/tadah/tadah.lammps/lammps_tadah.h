@@ -99,6 +99,13 @@ public:
     /* ------------ plain data ------------ */
     core::Context  c;
 
+    /* The potential context as given stores EMBF0 (DM_REAM embedding
+     * reference). Taken in the constructors' init lists BEFORE `S` is built:
+     * the DM_REAM constructor materialises the default ZERO into `c`, after
+     * which c.has_stored("EMBF0") is always true. Must stay declared after
+     * `c` and before `S`. pair_coeff warns when a DM_REAM potential lacks it. */
+    bool embf0_declared{false};
+
     bool   norm   {};
     size_t bias   {0};
     size_t rsize  {0};

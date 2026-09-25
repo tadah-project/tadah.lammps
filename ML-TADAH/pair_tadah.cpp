@@ -1358,14 +1358,29 @@ void PairTadah::coeff(int narg, char **arg)
   lt->initialize(narg, arg);
 
   // State the DM_REAM embedding reference on every load: a potential without
-  // an EMBF0 line is evaluated with the default ZERO (F(0) = 0).
+  // an EMBF0 line is evaluated with the default ZERO (F(0) = 0), which changes
+  // the energies of a tadah <= 1.5.0 potential -- a LAMMPS WARNING says so
+  // (the tadah Logger notice is silent here: level ERROR, std::cout only).
   if (comm->me == 0 && lt->initmb && lt->S.dmb) {
-    if (const auto mode = lt->S.dmb->embf0_mode())
-      utils::logmesg(lmp, "  Tadah! DM_REAM embedding reference EMBF0 {}{}\n",
-                     tadah::models::embf0_name(*mode),
-                     *mode == tadah::models::EmbF0Mode::Zero
-                         ? " (F(0) = 0 by construction)"
-                         : " (raw embedding of tadah <= 1.5.0)");
+    if (const auto mode = lt->S.dmb->embf0_mode()) {
+      if (lt->embf0_declared) {
+        utils::logmesg(lmp, "  Tadah! DM_REAM embedding reference EMBF0 {}{}\n",
+                       tadah::models::embf0_name(*mode),
+                       *mode == tadah::models::EmbF0Mode::Zero
+                           ? " (F(0) = 0 by construction)"
+                           : " (raw embedding of tadah <= 1.5.0)");
+      } else {
+        utils::logmesg(lmp, "  Tadah! DM_REAM embedding reference EMBF0 {} "
+                       "(key absent: default ZERO, F(0) = 0 by construction; "
+                       "add EMBF0 FREE to reproduce tadah <= 1.5.0 energies)\n",
+                       tadah::models::embf0_name(*mode));
+        const std::string pot = strcmp(arg[2], "EXTERN") == 0
+                                    ? std::string("EXTERN (driver-provided)")
+                                    : std::string(arg[2]);
+        error->warning(FLERR, "pair tadah: potential '{}' has no EMBF0 line; {}",
+                       pot, tadah::models::embf0_absent_consequence(lt->linear));
+      }
+    }
   }
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;

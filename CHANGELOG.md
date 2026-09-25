@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`pair_coeff` now warns when a DM_REAM potential has no `EMBF0` line (BUG-08).** Such a potential is evaluated with the default `EMBF0 ZERO` (F(0) = 0 by construction), which moves every atomic energy of a potential written by tadah 1.5.0 or earlier by -F(0) (for a non-linear model, forces change too). Previously LAMMPS printed only the same neutral banner as for an explicit `EMBF0 ZERO`. The tadah notice meant for this case never showed up in LAMMPS: the tadah Logger defaults to ERROR and writes only to std::cout. Now every `pair_coeff` that loads such a potential prints a LAMMPS `WARNING`, on screen and in log.lammps, with the same text as the tadah notice, and the banner reads `EMBF0 ZERO (key absent: default ZERO, ...; add EMBF0 FREE to reproduce tadah <= 1.5.0 energies)`. Potentials that declare `EMBF0` print exactly what they printed before. Evaluation does not change. `LammpsTadah::embf0_declared` records whether the potential context as given stored the key, before DM_REAM materialises the default. **Rebuild required**: the `LammpsTadah` layout changed, and Tadah.HPO includes it.
+
 ## [1.5.1] — 2026-09-25
 
 ### Fixed
