@@ -3,6 +3,7 @@
 #include <tadah/core/intercept_layout.h>
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/registry.h>
+#include <tadah/models/descriptors/dimer_element_pairs.h>
 
 #include <cmath>
 #include <stdexcept>
@@ -31,6 +32,10 @@ void build_sub_objects(LammpsTadah& self)
 
     self.init2b = self.c.get<bool>("INIT2B");
     self.initmb = self.c.get<bool>("INITMB");
+
+    /* PairTadah::compute_dimers evaluates every atom as Z=1: a descriptor
+     * declared for specific element pairs would apply to no pair. */
+    models::require_dimer_element_pairs(self.c, *self.S.d2b, *self.S.dmb);
 
     /* ---- create Function_Base ---- */
     auto fb_ptr = core::factory<models::Function_Base, core::Context&>(
