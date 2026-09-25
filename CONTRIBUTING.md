@@ -3,7 +3,7 @@
 The full contributor guide for the Tadah! project lives in the
 umbrella repository:
 
-<https://git.ecdf.ed.ac.uk/tadah/tadah.mlip/-/blob/develop/CONTRIBUTING.md>
+<https://git.ecdf.ed.ac.uk/tadah/tadah.mlip/-/blob/v1-dev/CONTRIBUTING.md>
 
 For bug reports and feature requests on this module, please use the
 GitLab issue tracker on this project. Cross-cutting changes (work
