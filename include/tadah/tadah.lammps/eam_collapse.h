@@ -10,7 +10,8 @@
  * hot path then needs only phi, phi', rho, rho' per pair (tabulated here as
  * cubic Hermite splines with analytic node derivatives, so energy and force
  * come from the same interpolant) plus the exact analytic F, F' per atom
- * (DM_Base::eam_embed).
+ * (DM_Base::eam_embed, including the DM_REAM EMBF0 reference: under the
+ * default EMBF0 ZERO, F(0) = 0 exactly).
  *
  * Two collapses are supported, selected by the model's descriptor set:
  *  - build_eam_collapse:    radial D2 + EAM-form DM (e.g. the `tadah refit`

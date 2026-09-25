@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **`pair_coeff` now warns when a DM_REAM potential has no `EMBF0` line (BUG-08).** Such a potential is evaluated with the default `EMBF0 ZERO` (F(0) = 0 by construction), which moves every atomic energy of a potential written by tadah 1.5.0 or earlier by -F(0) (for a non-linear model, forces change too). Previously LAMMPS printed only the same neutral banner as for an explicit `EMBF0 ZERO`. The tadah notice meant for this case never showed up in LAMMPS: the tadah Logger defaults to ERROR and writes only to std::cout. Now every `pair_coeff` that loads such a potential prints a LAMMPS `WARNING`, on screen and in log.lammps, with the same text as the tadah notice, and the banner reads `EMBF0 ZERO (key absent: default ZERO, ...; add EMBF0 FREE to reproduce tadah <= 1.5.0 energies)`. Potentials that declare `EMBF0` print exactly what they printed before. Evaluation does not change. `LammpsTadah::embf0_declared` records whether the potential context as given stored the key, before DM_REAM materialises the default. **Rebuild required**: the `LammpsTadah` layout changed, and Tadah.HPO includes it.
+
 ## [1.6.0] — 2026-09-25
 
 ### Added
@@ -29,6 +32,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `pair_coeff * * EXTERN` with no staged or pre-loaded potential, and `pair_coeff` with an unloadable potential file, now raise a clean LAMMPS error. Previously `coeff()` discarded `load()`'s failure return and dereferenced the null potential — a segfault (this is how the legacy `input->file()`-based MPI worker died on EXTERN scripts).
 - Test fixture `valid_config5` (the `M_BLR_MD`/`M_KRR_MD` constructor tests) is valid under the current grammar: it declared a bare `TYPE2B D2_Blip`, which fails since 1.6.0 when the descriptors are built, used the pre-1.x grid codes `-1`/`-2` (now `LIN`/`GEOM`) and had no `ATOM` for its intercept column. A new test builds its descriptors and checks their columns against the weights.
 - `README.md` and `integration/README.md` said `TADAH_GIT_BRANCH` selects the Tadah.LAMMPS branch and defaults to `main`. It is the git ref the Tadah modules are fetched at (Tadah.MD and, through it, MODELS and CORE); the Tadah.LAMMPS sources are the checkout at `TADAH_LAMMPS_SOURCE_DIR`. Without it the ref is detected from the checkout of the project CMake was started on, which in the LAMMPS build is LAMMPS (`stable`, `develop`, ...), so the READMEs now pass it (`-DTADAH_GIT_BRANCH=v1-dev`, or a release tag such as `v1.6.0`), in every configure example, and describe the detection. They clone Tadah.LAMMPS at `v1-dev` or a release tag by name (`git clone -b`): a plain clone checks out the repository's default branch. An example used a personal path.
+
+## [1.5.1] — 2026-09-25
+
+### Changed
+- `pair_coeff` prints the DM_REAM embedding reference (`EMBF0 ZERO` = F(0) = 0 by construction, the new default; `EMBF0 FREE` = raw 1.5.0 embedding). The EAMFAST kernel needs no change: F comes from `DM_Base::eam_embed`, which applies the reference. Rebuild required (DM_Base/DM_REAM layout). New DM_REAM collapse tests (Blip5 and negative-knot Knot5 fixtures): `eam_embed` equals w·calc_aed, F(0) == 0.0 under ZERO.
 
 ## [1.4.0] — 2026-07-14
 
