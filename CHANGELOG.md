@@ -12,6 +12,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **A configure-time assertion that the pair style was actually registered.** After LAMMPS finishes, the hook checks that a generated `style_pair.cpp`/`style_pair.h` really names `pair_tadah.h`, and hard-errors otherwise. A future LAMMPS reshuffle now stops the build instead of silently producing a binary that rejects `pair_style tadah` at run time.
 
 ### Changed
+- `pair_coeff` prints the DM_REAM embedding reference (`EMBF0 ZERO` = F(0) = 0 by construction, the new default; `EMBF0 FREE` = raw 1.5.0 embedding). The EAMFAST kernel needs no change: F comes from `DM_Base::eam_embed`, which applies the reference. Rebuild required (DM_Base/DM_REAM layout). New DM_REAM collapse tests (Blip5 and negative-knot Knot5 fixtures): `eam_embed` equals w·calc_aed, F(0) == 0.0 under ZERO.
 - `TADAH_LAMMPS_PAIR_STYLES` is **deprecated and ignored** — styles are discovered from the `PairStyle(...)` markers in the ML-TADAH headers. Setting it to a non-default value warns.
 
 ### Added

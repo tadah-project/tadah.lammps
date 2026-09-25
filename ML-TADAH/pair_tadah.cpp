@@ -507,7 +507,8 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
  * scalar pair function phi(r) and an EAM-form mb block to F(rho_bar_i),
  * rho_bar_i = sum_j rho(r_ij). phi/rho are cubic-Hermite tables built in
  * setup_eam_fastpath() by sampling the descriptors' own calc routines;
- * F, F' are evaluated analytically per atom (DM_Base::eam_embed) so no
+ * F, F' are evaluated analytically per atom (DM_Base::eam_embed, exactly as
+ * the descriptor defines them, including the DM_REAM EMBF0 reference) so no
  * embedding table range needs guessing. Structure mirrors pair_eam:
  * pass 1 accumulates rho_bar (reverse comm, 1 double), embedding per local
  * atom (forward comm of F', 1 double), pass 2 central pair forces.       */
@@ -1355,6 +1356,17 @@ void PairTadah::coeff(int narg, char **arg)
   }
 
   lt->initialize(narg, arg);
+
+  // State the DM_REAM embedding reference on every load: a potential without
+  // an EMBF0 line is evaluated with the default ZERO (F(0) = 0).
+  if (comm->me == 0 && lt->initmb && lt->S.dmb) {
+    if (const auto mode = lt->S.dmb->embf0_mode())
+      utils::logmesg(lmp, "  Tadah! DM_REAM embedding reference EMBF0 {}{}\n",
+                     tadah::models::embf0_name(*mode),
+                     *mode == tadah::models::EmbF0Mode::Zero
+                         ? " (F(0) = 0 by construction)"
+                         : " (raw embedding of tadah <= 1.5.0)");
+  }
 
   manybody_flag = lt->initmb || !lt->linear ? 1 : 0;
   single_enable = lt->linear && !lt->initmb ? 1 : 0;

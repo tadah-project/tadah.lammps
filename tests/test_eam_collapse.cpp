@@ -1,6 +1,9 @@
 #include "catch2/catch.hpp"
 
 #include <cmath>
+#include <cstdio>
+#include <fstream>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -116,4 +119,112 @@ TEST_CASE("build_pair2b_collapse refuses on weight-size mismatch",
     REQUIRE_FALSE(tadah::build_pair2b_collapse(lt.S, w_bad, lt.Z[0], 512, T, why));
     REQUIRE_FALSE(T.valid);
     REQUIRE(why.find("weight count") != std::string::npos);
+}
+
+/* ---------------------------------------------------------------------- */
+/* DM_REAM (EAM-form many-body block) and the EMBF0 embedding reference.   */
+
+namespace {
+
+/* Load a pot the way pair_coeff does; with `free` the same file is loaded
+ * with an extra `EMBF0 FREE` line (written to a temporary copy). */
+std::unique_ptr<LammpsTadah> load_pot(const std::string& file, bool free) {
+    tadah::core::PeriodicTable::initialize();
+    std::string path = file;
+    if (free) {
+        path = file + ".free.tmp";
+        std::ifstream in(file);
+        std::ofstream out(path);
+        out << in.rdbuf() << "\nEMBF0 FREE\n";
+    }
+    const char* argv[] = {"*", "*", path.c_str(), "Ta"};
+    auto lt = std::make_unique<LammpsTadah>(4, const_cast<char**>(argv));
+    lt->initialize(4, const_cast<char**>(argv));
+    if (free) std::remove(path.c_str());
+    return lt;
+}
+
+/* w . aed over the DM block, with aed from DM_Base::calc_aed at rho_bar;
+ * `abs_sum` (optional) receives sum |w . aed|, the scale of its rounding
+ * (this test file is compiled with the preset's fast-math flags, so its
+ * reassociated sum need not round like the library's loop). */
+double embedding_via_aed(LammpsTadah& lt, const tadah::core::t_type& w,
+                         double rho_bar, double* abs_sum = nullptr) {
+    const std::size_t ndesc = lt.S.descriptor_size();
+    tadah::core::rho_type rho;
+    lt.S.dmb->init_rhoi(rho);
+    rho(0) = rho_bar;
+    tadah::core::aed_type aed(ndesc);
+    aed.set_zero();
+    lt.S.dmb->calc_aed(rho, aed);
+    double F = 0.0, A = 0.0;
+    const std::size_t off = ndesc - lt.S.dmb->size();
+    for (std::size_t c = off; c < ndesc; ++c) {
+        F += w(c) * aed(c);
+        A += std::fabs(w(c) * aed(c));
+    }
+    if (abs_sum) *abs_sum = A;
+    return F;
+}
+
+} // namespace
+
+TEST_CASE("DM_REAM collapse: eam_embed equals w.calc_aed; EMBF0 ZERO gives F(0)=0",
+          "[eam_collapse][ream][embf0]") {
+    for (const std::string file : {"tests_data/pots/ta_ream_blip5.tadah",
+                                   "tests_data/pots/ta_ream_knot5.tadah"}) {
+        INFO(file);
+        auto z_ptr = load_pot(file, false);
+        auto f_ptr = load_pot(file, true);
+        LammpsTadah& lz = *z_ptr;
+        LammpsTadah& lf = *f_ptr;
+        REQUIRE(lz.initmb);
+        REQUIRE(lz.S.dmb->eam_form());
+        REQUIRE(lz.S.dmb->embf0_mode() == tadah::models::EmbF0Mode::Zero);
+        REQUIRE(lf.S.dmb->embf0_mode() == tadah::models::EmbF0Mode::Free);
+
+        const auto w = weights_of(lz);
+        REQUIRE(w.size() == lz.S.descriptor_size());
+
+        EamCollapseTables T;
+        std::string why;
+        REQUIRE(tadah::build_eam_collapse(lz.S, w, lz.Z[0], 1024, T, why));
+        REQUIRE(T.valid);
+        REQUIRE(T.has_mb);
+
+        const double raw_f0 = *lf.S.dmb->raw_embedding_f0(w);
+        REQUIRE(raw_f0 != 0.0);   // the fixture is sensitive to the reference
+        // Rounding floor of sums cancelling down from S0 = sum |w g(0)|
+        // (every embedding family has g >= 0, so S0 = raw F(0) of |w|).
+        tadah::core::t_type wabs = w;
+        for (std::size_t i = 0; i < wabs.size(); ++i) wabs(i) = std::fabs(w(i));
+        const double s0 = *lf.S.dmb->raw_embedding_f0(wabs);
+        const double eps = std::numeric_limits<double>::epsilon();
+
+        for (const double rb : {0.0, 1e-9, 0.05, 0.3, 0.9, 1.7, 3.1, 7.5}) {
+            INFO("rho_bar = " << rb);
+            double Fz, Fpz, Ff, Fpf;
+            lz.S.dmb->eam_embed(w, rb, Fz, Fpz);
+            lf.S.dmb->eam_embed(w, rb, Ff, Fpf);
+            // F' is identical in both references (forces unchanged).
+            REQUIRE(Fpz == Fpf);
+            // The EAMFAST embedding equals the generic w . aed (both modes).
+            double az = 0.0, af = 0.0;
+            const double gz = embedding_via_aed(lz, w, rb, &az);
+            const double gf = embedding_via_aed(lf, w, rb, &af);
+            const double tol = 128.0 * eps * (s0 + az + af) + 1e-12;
+            REQUIRE(std::fabs(Fz - gz) <= tol);
+            REQUIRE(std::fabs(Ff - gf) <= tol);
+            // ZERO is FREE shifted by the raw F(0).
+            REQUIRE(std::fabs(Fz - (Ff - raw_f0)) <= tol);
+        }
+        // Exactly zero at rho = 0 under ZERO, on both evaluation paths.
+        double F0, Fp0;
+        lz.S.dmb->eam_embed(w, 0.0, F0, Fp0);
+        REQUIRE(F0 == 0.0);
+        REQUIRE(embedding_via_aed(lz, w, 0.0) == 0.0);
+        // FREE: the isolated-atom embedding energy is the raw F(0).
+        lf.S.dmb->eam_embed(w, 0.0, F0, Fp0);
+        REQUIRE(std::fabs(F0 - raw_f0) <= 128.0 * eps * s0);
+    }
 }
