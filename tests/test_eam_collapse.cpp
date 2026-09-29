@@ -1284,3 +1284,23 @@ TEST_CASE("DM_REAM potential without RHOFORM: the load fails with the "
         REQUIRE(density_form(*lt) == tadah::models::RhoForm::Signed);
     }
 }
+
+TEST_CASE("LammpsTadah::initialize: an element the potential does not have "
+          "throws with its symbol",
+          "[pair_coeff]") {
+    /* pair_coeff * * <file> W on a Ta potential. pair_tadah's coeff() turns
+     * this exception into a LAMMPS error->all carrying the text, so it
+     * reaches log.lammps (checked through LAMMPS in the HPO test
+     * test_ream_fastpath: this library has no LAMMPS instance). */
+    tadah::core::PeriodicTable::initialize();
+    const std::string path = "tests_data/pots/ta_ream_knot5.tadah";
+    const char* argv[] = {"*", "*", path.c_str(), "W"};
+    LammpsTadah lt(4, const_cast<char**>(argv));
+    REQUIRE_THROWS_AS(lt.initialize(4, const_cast<char**>(argv)),
+                      std::runtime_error);
+    REQUIRE_THROWS_WITH(lt.initialize(4, const_cast<char**>(argv)),
+                        Catch::Contains("Symbol not in potential file: W"));
+    // NULL skips a LAMMPS type, the potential's own element maps
+    const char* ok[] = {"*", "*", path.c_str(), "Ta", "NULL"};
+    REQUIRE_NOTHROW(lt.initialize(5, const_cast<char**>(ok)));
+}
