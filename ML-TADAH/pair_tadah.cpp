@@ -1373,7 +1373,20 @@ void PairTadah::coeff(int narg, char **arg)
                  arg[2], last_load_error_);
   }
 
-  lt->initialize(narg, arg);
+  /* Map the LAMMPS types to the potential's elements. A failure (an element
+   * the potential does not have: "Symbol not in potential file: W") goes
+   * through error->all like a load failure, so its reason reaches
+   * log.lammps and the exception a library driver catches; thrown from
+   * here it left LAMMPS without a log entry. */
+  try {
+    lt->initialize(narg, arg);
+  } catch (const std::exception& e) {
+    error->all(FLERR, "pair_coeff: failed to initialise Tadah potential '{}': {}",
+               strcmp(arg[2], "EXTERN") == 0
+                   ? std::string("EXTERN (driver-provided)")
+                   : std::string(arg[2]),
+               e.what());
+  }
 
   // State the DM_REAM embedding reference and density form on every load: a
   // potential without an EMBF0 line is evaluated with the default ZERO
@@ -1590,8 +1603,9 @@ bool PairTadah::load(const tadah::core::Context& ctx)
         return true;
     }
     catch (const std::exception& e) {
+        // Reported by coeff() through error->all (pair_coeff * * EXTERN):
+        // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
-        std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;
     }
@@ -1617,8 +1631,9 @@ bool PairTadah::load(tadah::core::Context&& ctx)
         return true;
     }
     catch (const std::exception& e) {
+        // Reported by coeff() through error->all (pair_coeff * * EXTERN):
+        // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
-        std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;
     }

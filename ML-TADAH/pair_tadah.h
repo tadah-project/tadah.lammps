@@ -87,8 +87,9 @@ namespace LAMMPS_NS {
       }
 
       /* Each returns false on failure and keeps the reason in
-       * last_load_error() (the CLI overload, used by coeff(), no longer
-       * prints it to stderr: coeff() reports it through error->all). */
+       * last_load_error(); none prints it: coeff() reports it through
+       * error->all (the CLI overload directly, the Context overloads at
+       * pair_coeff * * EXTERN). */
       bool load(int argc, char **argv);                          // CLI
       bool load(const tadah::core::Context& ctx);   // copy from l-value
       bool load(tadah::core::Context&& ctx);        // move from r-value
