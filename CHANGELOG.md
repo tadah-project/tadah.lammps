@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING (via Tadah.MODELS) — a DM_REAM potential must declare its density form, `RHOFORM SIGNED | NONNEG | MONOTONE`.** `pair_coeff` refuses a DM_REAM potential without the key, and the LAMMPS error now carries the reason: `pair_coeff: failed to load Tadah potential from '<file>': DM_REAM: RHOFORM is required: ...` (screen, `log.lammps`, and the exception a library driver catches). Previously the error named only the file and the reason of any load failure went to stderr alone. A `pair_coeff * * EXTERN` line with nothing to adopt (no staged potential, and the driver's own `load()` of this pair style failed) appends the same reason: `pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential (last load() failed: <reason>)`. `PairTadah` keeps the reason of the last failed load (`last_load_error()`, set by all four `load` overloads); the command-line overload that `pair_coeff` uses no longer prints it to stderr. **Migration:** add `RHOFORM SIGNED` to a DM_REAM potential written by tadah 1.5.1 or earlier (bit-identical).
+- `pair_coeff` prints the density form next to the EMBF0 banner: `Tadah! DM_REAM density form RHOFORM <form>` with `(signed amplitudes, the tadah <= 1.5.1 density)`, `(rho >= 0 by construction)` or `(rho >= 0 and non-increasing by construction)`. The EAMFAST kernel needs no change: its rho table is sampled from `DM_Base::eam_density`, which evaluates the declared form. **Rebuild required**: the DM_REAM layout changed (Tadah.MODELS), and `PairTadah` gains a member (declared last, so the offset of `lt` is unchanged). Tests: `test_eam_collapse.cpp` (the `MONOTONE` collapse: the rho table follows `eam_density` to a relative tolerance; a potential without `RHOFORM` fails to load with the migration text); the DM_REAM test potentials declare `RHOFORM SIGNED`; the collapse test `eam_embed equals w.calc_aed, EMBF0 ZERO gives F(0)=0` lost a `;` (`catch_discover_tests` split it into two ctest fragments that ran nothing).
+
 ## [1.6.0] — 2026-09-25
 
 ### Added
