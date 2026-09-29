@@ -1028,15 +1028,27 @@ TEST_CASE("DM_REAM collapse: eam_embed equals w.calc_aed, EMBF0 ZERO gives F(0)=
 
 namespace {
 
+/* A scratch potential file, removed with the object however the test case
+ * ends (a failed REQUIRE throws past a trailing std::remove). */
+struct TempPot {
+    std::string path;
+    explicit TempPot(std::string p) : path(std::move(p)) {}
+    TempPot(const TempPot&) = delete;
+    TempPot& operator=(const TempPot&) = delete;
+    ~TempPot() { std::remove(path.c_str()); }
+};
+
 /* Copy of @p file with its RHOFORM line replaced by "RHOFORM <form>" (form
  * empty: the line is dropped), written next to it under @p tag and the
  * process id (ctest runs the cases as concurrent processes). */
-std::string pot_with_rhoform(const std::string& file, const std::string& form,
-                             const std::string& tag) {
+std::unique_ptr<TempPot> pot_with_rhoform(const std::string& file,
+                                          const std::string& form,
+                                          const std::string& tag) {
     std::ifstream in(file);
     REQUIRE(in.good());
-    const std::string path = file + "." + tag + "." +
-                             std::to_string(::getpid()) + ".tmp";
+    auto pot = std::make_unique<TempPot>(file + "." + tag + "." +
+                                         std::to_string(::getpid()) + ".tmp");
+    const std::string& path = pot->path;
     std::ofstream out(path);
     std::string line;
     int replaced = 0;
@@ -1049,7 +1061,7 @@ std::string pot_with_rhoform(const std::string& file, const std::string& form,
         out << line << "\n";
     }
     REQUIRE(replaced == 1);
-    return path;
+    return pot;
 }
 
 std::unique_ptr<LammpsTadah> load_path(const std::string& path) {
@@ -1062,10 +1074,8 @@ std::unique_ptr<LammpsTadah> load_path(const std::string& path) {
 
 std::unique_ptr<LammpsTadah> load_with_rhoform(const std::string& file,
                                                const std::string& form) {
-    const std::string path = pot_with_rhoform(file, form, form);
-    auto lt = load_path(path);
-    std::remove(path.c_str());
-    return lt;
+    const auto pot = pot_with_rhoform(file, form, form);
+    return load_path(pot->path);
 }
 
 tadah::models::RhoForm density_form(const LammpsTadah& lt) {
@@ -1097,7 +1107,7 @@ TEST_CASE("DM_REAM collapse under RHOFORM MONOTONE: the rho table follows "
     REQUIRE(density_form(ls) == tadah::models::RhoForm::Signed);
 
     const auto w = weights_of(lm);
-    constexpr int NR = 8192;   // the table size pair_tadah uses
+    constexpr int NR = tadah::kCollapseNR;   // the table size pair_tadah uses
     EamCollapseTables T, TS;
     std::string why;
     REQUIRE(tadah::build_eam_collapse(lm.S, w, lm.Z[0], NR, T, why));
@@ -1228,7 +1238,8 @@ TEST_CASE("DM_REAM potential without RHOFORM: the load fails with the "
     const std::string file = "tests_data/pots/ta_ream_knot5.tadah";
 
     SECTION("pair_coeff * * <file> (the CLI constructor)") {
-        const std::string path = pot_with_rhoform(file, "", "absent");
+        const auto pot = pot_with_rhoform(file, "", "absent");
+        const std::string& path = pot->path;
         const char* argv[] = {"*", "*", path.c_str(), "Ta"};
         REQUIRE_THROWS_AS(LammpsTadah(4, const_cast<char**>(argv)),
                           tadah::models::DensityFormError);
@@ -1237,25 +1248,36 @@ TEST_CASE("DM_REAM potential without RHOFORM: the load fails with the "
                                 tadah::models::rhoform_absent_message()) &&
                             Catch::Contains("add 'RHOFORM SIGNED' to use an "
                                             "existing potential unchanged"));
-        std::remove(path.c_str());
     }
     SECTION("a driver-built potential (the Context constructor)") {
-        const std::string path = pot_with_rhoform(file, "", "absent_ctx");
+        const auto pot = pot_with_rhoform(file, "", "absent_ctx");
         tadah::core::Context ctx =
-            tadah::core::CoreUserConfigParser().parse(path);
-        std::remove(path.c_str());
+            tadah::core::CoreUserConfigParser().parse(pot->path);
         REQUIRE_FALSE(ctx.has_stored("RHOFORM"));
         REQUIRE_THROWS_WITH(LammpsTadah(ctx),
                             Catch::Contains("DM_REAM: RHOFORM is required"));
         REQUIRE_FALSE(ctx.has_stored("RHOFORM"));   // nothing materialised
     }
-    SECTION("an invalid form") {
-        const std::string path = pot_with_rhoform(file, "SQUARE", "square");
+    SECTION("an invalid form in the file: an error at its line") {
+        const auto pot = pot_with_rhoform(file, "SQUARE", "square");
+        const std::string& path = pot->path;
         const char* argv[] = {"*", "*", path.c_str(), "Ta"};
         REQUIRE_THROWS_WITH(LammpsTadah(4, const_cast<char**>(argv)),
+                            Catch::Contains("Invalid value for key RHOFORM "
+                                            "on line ") &&
+                            Catch::Contains(" of " + path + ": 'SQUARE' "
+                                            "(allowed: SIGNED, NONNEG, "
+                                            "MONOTONE)"));
+    }
+    SECTION("an invalid form in a driver-built potential") {
+        const auto pot = pot_with_rhoform(file, "SIGNED", "square_ctx");
+        tadah::core::Context ctx =
+            tadah::core::CoreUserConfigParser().parse(pot->path);
+        ctx.remove("RHOFORM");
+        ctx.add("RHOFORM", std::string("SQUARE"));
+        REQUIRE_THROWS_WITH(LammpsTadah(ctx),
                             Catch::Contains("RHOFORM 'SQUARE' is not a "
                                             "density form"));
-        std::remove(path.c_str());
     }
     SECTION("the fixture as written (RHOFORM SIGNED) loads") {
         auto lt = load_path(file);

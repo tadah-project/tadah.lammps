@@ -3,6 +3,7 @@
 # (Cut_Dummy, so the cutoff does not damp it). No cubic Hermite table on the
 # 8192-node grid follows it, so the rho table misses the collapse tolerance
 # already in its top segment; the phi table is the certified quickstart one.
+# RHOFORM SIGNED, as ta_lj_ream.tadah.
 ATOM              Ta
 AMPGRIDMB         0.40 0.25 0.12 0.05 0.3
 BIAS              false
@@ -20,6 +21,7 @@ RCTYPE2B          Cut_Dummy
 RCTYPEMB          Cut_Dummy
 RCUT2B            6.5
 RCUTMB            6.0
+RHOFORM           SIGNED
 SEMBFUNC          1.5 1.5 1.5 1.5 1.5
 SGRIDMB           1.0 1.0 1.0 1.0 2000
 SWEIGHT           1.0
