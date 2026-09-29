@@ -27,6 +27,7 @@ PairStyle(tadah,PairTadah)
 
 #include "pair.h"
 #include <memory>
+#include <string>
 #include <tadah/tadah.lammps/lammps_tadah.h>
 
 namespace LAMMPS_NS {
@@ -66,6 +67,15 @@ namespace LAMMPS_NS {
       int nmax=0;
       void allocate();
 
+      /* e.what() of the last failed load(): coeff() puts it in its
+       * error->all message (a file that fails to load, and an EXTERN line
+       * with no potential to adopt), so the reason (e.g. the DM_REAM RHOFORM
+       * migration text) reaches log.lammps and the exception a library
+       * driver catches instead of stderr only. Empty after a successful
+       * load. Declared last: the offset of `lt` (read inline by drivers
+       * through lammps_tadah()) is unchanged. */
+      std::string last_load_error_;
+
       double single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                 double /*factor_coul*/, double /*factor_lj*/, double &fforce);
 
@@ -74,10 +84,14 @@ namespace LAMMPS_NS {
         std::cout << "Hello from PairTadah!" << std::endl;
       }
 
+      /* Each returns false on failure and keeps the reason in
+       * last_load_error() (the CLI overload, used by coeff(), no longer
+       * prints it to stderr: coeff() reports it through error->all). */
       bool load(int argc, char **argv);                          // CLI
       bool load(const tadah::core::Context& ctx);   // copy from l-value
       bool load(tadah::core::Context&& ctx);        // move from r-value
       bool load(std::shared_ptr<tadah::LammpsTadah> shared_lt); // adopt shared
+      const std::string& last_load_error() const { return last_load_error_; }
 
       /* EXTERN staging. A driver that executes a whole script through
        * LAMMPS's input->file() cannot interleave load() calls with the

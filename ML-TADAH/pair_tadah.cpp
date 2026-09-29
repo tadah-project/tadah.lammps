@@ -31,6 +31,7 @@ See the README file in the top-level LAMMPS directory.
 #include "neigh_request.h"
 
 #include <tadah/core/blueprint_parser.h>
+#include <tadah/models/descriptors/dm/rhoform.h>
 
 #include <algorithm>
 #include <cmath>
@@ -1346,21 +1347,27 @@ void PairTadah::coeff(int narg, char **arg)
      *     per-line driver pattern, kept for back-compat);
      *  3. hard error. Previously this fell through to a CLI load of the
      *     literal file "EXTERN" whose failure was silently ignored and
-     *     the null lt dereferenced below. */
+     *     the null lt dereferenced below. When the driver's load() of
+     *     case 2 failed, its reason (last_load_error_) is in the message. */
     if (staged_extern_slot()) lt = staged_extern_slot();
     else if (!lt)
-      error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential");
+      error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential{}",
+                 last_load_error_.empty()
+                     ? std::string()
+                     : " (last load() failed: " + last_load_error_ + ")");
   } else if (!lt) {  // not initialized yet; it may also be init externally by a driver
     if (!PairTadah::load(narg, arg))
-      error->all(FLERR,"pair_coeff: failed to load Tadah potential from '{}'", arg[2]);
+      error->all(FLERR,"pair_coeff: failed to load Tadah potential from '{}': {}",
+                 arg[2], last_load_error_);
   }
 
   lt->initialize(narg, arg);
 
-  // State the DM_REAM embedding reference on every load: a potential without
-  // an EMBF0 line is evaluated with the default ZERO (F(0) = 0), which changes
-  // the energies of a tadah <= 1.5.0 potential -- a LAMMPS WARNING says so
-  // (the tadah Logger notice is silent here: level ERROR, std::cout only).
+  // State the DM_REAM embedding reference and density form on every load: a
+  // potential without an EMBF0 line is evaluated with the default ZERO
+  // (F(0) = 0), which changes the energies of a tadah <= 1.5.0 potential -- a
+  // LAMMPS WARNING says so (the tadah Logger notice is silent here: level
+  // ERROR, std::cout only).
   if (comm->me == 0 && lt->initmb && lt->S.dmb) {
     if (const auto mode = lt->S.dmb->embf0_mode()) {
       if (lt->embf0_declared) {
@@ -1379,6 +1386,18 @@ void PairTadah::coeff(int narg, char **arg)
                                     : std::string(arg[2]);
         error->warning(FLERR, "pair tadah: potential '{}' has no EMBF0 line; {}",
                        pot, tadah::models::embf0_absent_consequence(lt->linear));
+      }
+      // The density form: mandatory on a DM_REAM potential (the load above
+      // refused one without it), so it is always stored here.
+      if (const auto form = tadah::models::stored_rhoform(lt->c)) {
+        using tadah::models::RhoForm;
+        utils::logmesg(lmp, "  Tadah! DM_REAM density form RHOFORM {}{}\n",
+                       tadah::models::rhoform_name(*form),
+                       *form == RhoForm::Signed
+                           ? " (signed amplitudes, the tadah <= 1.5.1 density)"
+                       : *form == RhoForm::NonNeg
+                           ? " (rho >= 0 by construction)"
+                           : " (rho >= 0 and non-increasing by construction)");
       }
     }
   }
@@ -1535,6 +1554,7 @@ using tadah::LammpsTadah;
 
 bool PairTadah::load(int argc, char **argv)
 {
+  last_load_error_.clear();
   try
   {
     lt.reset(new tadah::LammpsTadah(argc, argv));
@@ -1542,7 +1562,9 @@ bool PairTadah::load(int argc, char **argv)
   }
   catch (const std::exception& e)
   {
-    std::cerr << "PairTadah::load (CLI): " << e.what() << '\n';
+    // Reported by coeff() through error->all: screen and log.lammps (rank
+    // 0) and the exception every rank throws.
+    last_load_error_ = e.what();
     lt.reset();                         // ensure we own nothing
     return false;
   }
@@ -1550,11 +1572,13 @@ bool PairTadah::load(int argc, char **argv)
 
 bool PairTadah::load(const tadah::core::Context& ctx)
 {
+    last_load_error_.clear();
     try {
         lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
         return true;
     }
     catch (const std::exception& e) {
+        last_load_error_ = e.what();
         std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;
@@ -1568,16 +1592,20 @@ bool PairTadah::load(std::shared_ptr<tadah::LammpsTadah> shared_lt)
      * initialize() + setup_eam_fastpath() on it (both idempotent), so all
      * per-pair_coeff state is refreshed exactly as in the ctx path. */
     lt = std::move(shared_lt);
+    if (lt) last_load_error_.clear();
+    else last_load_error_ = "no potential given (null shared LammpsTadah)";
     return static_cast<bool>(lt);
 }
 
 bool PairTadah::load(tadah::core::Context&& ctx)
 {
+    last_load_error_.clear();
     try {
         lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
         return true;
     }
     catch (const std::exception& e) {
+        last_load_error_ = e.what();
         std::cerr << "PairTadah::load: " << e.what() << '\n';
         lt.reset();
         return false;

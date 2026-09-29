@@ -1,6 +1,7 @@
 # Knot5 DM_REAM fixture (negative embedding knots; F(0) != 0 in the raw
 # basis): copy of HPO_REFIT_2B_EAM/demos/Ta/pot.tadah (tadah refit, compact).
-# No EMBF0 line: the default ZERO applies.
+# No EMBF0 line: the default ZERO applies. RHOFORM SIGNED: some density
+# amplitudes are negative.
 AMPGRIDMB         0.009708244690774269   0.009674844385395990   -0.025225004679995621   -0.009325942537791374   -1.222676951476143525   -0.001952139603524065   0.015322895526324260   1.252682486527901595
 ATOM              Ta
 BIAS              false
@@ -20,6 +21,7 @@ RCTYPE2B          Cut_Dummy
 RCTYPEMB          Cut_Dummy
 RCUT2B            5.581907420240000306
 RCUTMB            5.581907420240000306
+RHOFORM           SIGNED
 STRESS            false
 TYPE2B            D2_Knot5   13   0   Ta   Ta
 TYPEMB            DM_REAM   2   8   0   8   15   0   0   0   Ta   Ta
