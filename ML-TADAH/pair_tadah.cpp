@@ -1008,6 +1008,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
     delM(0,1) = x[i1][1] - x[i2][1];
     delM(0,2) = x[i1][2] - x[i2][2];
     r_sq[0] = delM.row(0)*delM.row(0);
+    if (r_sq[0] == 0.0) refuse_coincident(i1, i2);
     r[0] = sqrt(r_sq[0]);
 
     if (abs(r[0]-r_b)>eps) {
@@ -1030,6 +1031,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
       delM(2,1) = x[i1][1] - x[j1][1];
       delM(2,2) = x[i1][2] - x[j1][2];
       r_sq[2] = delM.row(2)*delM.row(2);
+      if (r_sq[2] == 0.0) refuse_coincident(i1, j1);
 
       if (r_sq[2] > lt->cutoff_max_sq) continue;
       r[2] = sqrt(r_sq[2]);
@@ -1072,6 +1074,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         delM(1,1) = x[j1][1] - x[j2][1];
         delM(1,2) = x[j1][2] - x[j2][2];
         r_sq[1] = delM.row(1)*delM.row(1);
+        if (r_sq[1] == 0.0) refuse_coincident(j1, j2);
         r[1] = sqrt(r_sq[1]);
 
       }
@@ -1129,6 +1132,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         delM(n,1) = x[I][1] - x[J][1];
         delM(n,2) = x[I][2] - x[J][2];
         r_sq[n] = delM.row(n)*delM.row(n);
+        if (r_sq[n] == 0.0) refuse_coincident(I, J);
         r[n] = sqrt(r_sq[n]);
       }
 
