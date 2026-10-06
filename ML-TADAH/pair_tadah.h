@@ -34,6 +34,10 @@ namespace LAMMPS_NS {
 
   class PairTadah : public Pair {
     private:
+      /** Stops the run (error->one) for two atoms at the same position,
+       *  naming their atom IDs: every force would be nan. */
+      [[noreturn]] void refuse_coincident(int i, int j);
+
       /** Linear kernel + two-body descriptor */
       void compute_2b(int eflag, int vflag);
 

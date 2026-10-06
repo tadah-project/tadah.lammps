@@ -138,6 +138,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
       delij[1] = ytmp - x[j][1];
       delij[2] = ztmp - x[j][2];
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+      if (rij_sq == 0.0) refuse_coincident(i, j);
 
       if (rij_sq > lt->cutoff_max_sq) continue;
 
@@ -308,6 +309,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
       delij[1] = ytmp - x[j][1];
       delij[2] = ztmp - x[j][2];
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+      if (rij_sq == 0.0) refuse_coincident(i, j);
 
       if (rij_sq > lt->cutoff_max_sq) continue;
       double rij = sqrt(rij_sq);
@@ -559,6 +561,7 @@ void PairTadah::compute_2b_mb_half_eamfast(int eflag, int vflag)
       dely = ytmp - x[j][1];
       delz = ztmp - x[j][2];
       rij_sq = delx*delx + dely*dely + delz*delz;
+      if (rij_sq == 0.0) refuse_coincident(i, j);
       if (rij_sq >= rc_rho*rc_rho) continue;
       const double rij = sqrt(rij_sq);
       double rho_r, rhop_unused;
@@ -672,6 +675,7 @@ void PairTadah::compute_2b_fast(int eflag, int vflag)
       dely = ytmp - x[j][1];
       delz = ztmp - x[j][2];
       rij_sq = delx*delx + dely*dely + delz*delz;
+      if (rij_sq == 0.0) refuse_coincident(i, j);
       if (rij_sq > lt->cutoff_max_sq || rij_sq >= rc_phi_sq) continue;
       const double rij = sqrt(rij_sq);
 
@@ -759,6 +763,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
       delij[1] = ytmp - x[j][1];
       delij[2] = ztmp - x[j][2];
       rij_sq = delij[0]*delij[0] + delij[1]*delij[1] + delij[2]*delij[2];
+      if (rij_sq == 0.0) refuse_coincident(i, j);
 
       if (rij_sq > lt->cutoff_max_sq) continue;
       double rij = sqrt(rij_sq);
@@ -1558,9 +1563,22 @@ void PairTadah::unpack_forward_comm(int n, int first, double *buf)
   else
     lt->unpack_forward_nonlinear(n,first,buf);
 }
-double PairTadah::single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
+/* Two atoms at one position: every descriptor divides by the distance, so the
+ * forces would be nan. Not a physical structure; stop, naming the atom IDs. */
+void PairTadah::refuse_coincident(int i, int j)
+{
+  const tagint a = std::min(atom->tag[i], atom->tag[j]);
+  const tagint b = std::max(atom->tag[i], atom->tag[j]);
+  error->one(FLERR,
+             "pair_tadah: atom IDs {} and {} are at the same position: two atoms "
+             "at one position are not a physical structure (every force would "
+             "be nan)", a, b);
+}
+
+double PairTadah::single(int i, int j, int itype, int jtype, double rsq,
                          double /*factor_coul*/, double /*factor_lj*/, double &fforce)
 {
+  if (rsq == 0.0) refuse_coincident(i, j);
   tadah::core::aed_type aed(lt->S.descriptor_size());
   tadah::core::fd_type fd(lt->S.descriptor_size());
   aed.set_zero();
