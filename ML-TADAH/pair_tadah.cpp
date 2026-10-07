@@ -280,11 +280,15 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   lt->rhos.set_zero();
   lt->aeds.set_zero();
 
-  if (lt->bias > 0)
-    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+  // The bias component of the atoms LAMMPS has, local and ghost: aeds has
+  // atom->nmax columns, and atom->type is not set past nlocal + nghost.
+  if (lt->bias > 0) {
+    const int nall = nlocal + atom->nghost;
+    for (int n=0; n<nall; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
+  }
 
   // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
   if (lt->capture_adjoint_state) {
@@ -734,8 +738,11 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
+  // The bias component of the atoms LAMMPS has, local and ghost: aeds has
+  // atom->nmax columns, and atom->type is not set past nlocal + nghost.
   if (lt->bias > 0) {
-    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+    const int nall = nlocal + atom->nghost;
+    for (int n=0; n<nall; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
