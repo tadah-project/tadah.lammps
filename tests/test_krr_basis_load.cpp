@@ -6,9 +6,10 @@
 // has one weight per product x_i x_j (i <= j) of the descriptor's
 // components. Only the pair style knows that length
 // (DC_Selector::descriptor_size()); M_KRR_Core checks the rest. With BIAS
-// true and several species the pair style's descriptor has one bias
-// component per species, while tadah (MLIP) trains such a potential with
-// one bias component shared by the species: the refusal names that cause.
+// true the descriptor has one intercept (bias) component per ATOM species,
+// as tadah trains it; a potential with one bias component shared by the
+// species (how tadah trained BIAS true with several species before 1.6.0)
+// is refused with the hint to retrain it (models::require_weights_fit).
 //
 // Before the fix: a potential with basis vectors of another length
 // loaded, and every K(b, x) read past the shorter of the two; one without
@@ -58,11 +59,20 @@ std::vector<std::string> rbf_potential(const std::string& basis,
     return lines;
 }
 
-/* The message of the exception loading `lines` throws, "" when none. */
+/* The message of the exception loading `lines` throws, "" when none: the
+ * potential is built and initialised as `pair_coeff * * pot.tadah <its
+ * ATOM species>` does (LammpsTadah::initialize checks that the potential
+ * fits the descriptor, models::require_weights_fit). */
 std::string load_error(const std::vector<std::string>& lines) {
     PeriodicTable::initialize();
     try {
         LammpsTadah lt(CoreUserConfigParser().parse(lines));
+        std::vector<std::string> args = {"*", "*", "pot.tadah"};
+        for (std::size_t i = 0; i < lt.c.size("ATOM"); ++i)
+            args.push_back(lt.c.get<std::string>("ATOM", i));
+        std::vector<char*> argv;
+        for (auto& a : args) argv.push_back(&a[0]);
+        lt.initialize(static_cast<int>(argv.size()), argv.data());
     } catch (const std::exception& e) {
         return e.what();
     }
@@ -118,9 +128,9 @@ namespace {
 
 /* A potential on ATOM `atoms` (WATOM 1 each) with D2_Blip of 3 functions
  * for every pair of them, BIAS `bias`, and the MODEL, MPARAMS, SBASIS,
- * BASIS and WEIGHTS lines given ("" leaves a line out). tadah (MLIP)
- * trains this descriptor with 3 components, 4 with BIAS true (one bias
- * component shared by the species). */
+ * BASIS and WEIGHTS lines given ("" leaves a line out). With BIAS true its
+ * descriptor has 3 + one intercept component per species: 4 on ATOM Ta, 5
+ * on ATOM Nb Ta. */
 std::vector<std::string> potential(const std::string& atoms, bool bias,
                                    const std::vector<std::string>& model) {
     const bool two = atoms.find(' ') != std::string::npos;
@@ -153,43 +163,70 @@ std::string values(const std::string& key, std::size_t n) {
 
 }  // namespace
 
-/* Pins: a non-linear potential laid out as tadah trains it with BIAS true
- * on two species (ATOM Nb Ta: a descriptor of 4 components, 3 D2_Blip and
- * one bias component shared by the species), whose descriptor in
- * pair_style tadah has 5 (one bias component per species), is refused
- * with a message naming the cause: BIAS true, the 2 species, the 4 and 5
- * components, that pair_style tadah cannot evaluate such a potential and
- * that one trained with BIAS false runs; it does not ask for another
- * BASIS ("BASIS must have" absent). Checked for M_KRR Kern_RBF (SBASIS 2,
- * BASIS of 2 x 4 values, 2 WEIGHTS) and M_BLR BF_Polynomial2 (10 WEIGHTS,
- * 4 x 5 / 2). The same potentials on one species (ATOM Ta: 4 components
- * in both) load (a pin).
- * Before the fix: the Kern_RBF potential was refused with "BASIS holds
- * SBASIS 2 basis vectors of 4 values each, but the descriptor of the
- * potential has 5 components: BASIS must have SBASIS x 5 values" (the
- * BIAS and species CHECKs failed); the BF_Polynomial2 potential loaded (no
- * throw), and every energy of 5 descriptor components would have read 15
- * weights of its 10, past WEIGHTS. */
-TEST_CASE("pair_style tadah refuses a non-linear potential trained with "
-          "BIAS true on several species, naming the cause",
+/* Pins: a non-linear potential with BIAS true on two species (ATOM Nb Ta)
+ * laid out with one bias component shared by the species (a descriptor of
+ * 4 components: 3 D2_Blip and the shared one), the layout in which tadah
+ * trained BIAS true with several species before 1.6.0, is refused by
+ * pair_style tadah, whose descriptor has one intercept component per
+ * species (5 components), with the message of models::require_weights_fit:
+ * the potential's sizes ("BASIS holds SBASIS 2 basis vectors of 4 values
+ * each, but the descriptor of the potential has 5 components (DSIZE)"; "has
+ * 10 WEIGHTS, but BF_Polynomial2 needs 15 weights"), BIAS true, ATOM Nb Ta,
+ * the shared intercept column, that pair_style tadah has used one per
+ * species since 1.3.0-beta.1, and to retrain it. Checked for M_KRR Kern_RBF
+ * (SBASIS 2, BASIS of 2 x 4 values, 2 WEIGHTS) and M_BLR BF_Polynomial2 (10
+ * WEIGHTS, 4 x 5 / 2). The potentials laid out as tadah trains them now, one
+ * intercept component per species (BASIS of 2 x 5 values; 15 WEIGHTS), load
+ * on ATOM Nb Ta, and the 4-component ones load on ATOM Ta (pins).
+ * Before the fix: both 4-component potentials on ATOM Nb Ta were refused
+ * by LammpsTadah's own check with "... It is laid out for a descriptor of 4
+ * components, with one bias component shared by the species, as tadah
+ * trains it ... pair_style tadah cannot evaluate a non-linear potential
+ * trained with BIAS true on several species; one trained with BIAS false
+ * runs" (since the per-species training of this branch, tadah trains 5
+ * components, and pair_style tadah evaluates them), without the sizes or
+ * the retrain hint. */
+TEST_CASE("pair_style tadah refuses a non-linear multi-species BIAS "
+          "potential with one shared intercept, saying to retrain, and "
+          "loads one with an intercept per species",
           "[lammps_tadah][krr_basis][bias]") {
-    const std::vector<std::string> rbf = {
+    const std::vector<std::string> rbf_shared = {
         "MODEL M_KRR Kern_RBF 1", "MPARAMS 1.0", "SBASIS 2",
         values("BASIS", 8), values("WEIGHTS", 2)};
-    const std::vector<std::string> p2 = {"MODEL M_BLR BF_Polynomial2",
-                                         values("WEIGHTS", 10)};
-    for (const auto* m : {&rbf, &p2}) {
+    const std::vector<std::string> rbf_per_species = {
+        "MODEL M_KRR Kern_RBF 1", "MPARAMS 1.0", "SBASIS 2",
+        values("BASIS", 10), values("WEIGHTS", 2)};
+    const std::vector<std::string> p2_shared = {"MODEL M_BLR BF_Polynomial2",
+                                                values("WEIGHTS", 10)};
+    const std::vector<std::string> p2_per_species = {
+        "MODEL M_BLR BF_Polynomial2", values("WEIGHTS", 15)};
+    {
+        const std::string msg = load_error(potential("Nb Ta", true, rbf_shared));
+        INFO("Kern_RBF: " << msg);
+        CHECK(contains(msg, "BASIS holds SBASIS 2 basis vectors of 4 values "
+                            "each, but the descriptor of the potential has 5 "
+                            "components (DSIZE)"));
+    }
+    {
+        const std::string msg = load_error(potential("Nb Ta", true, p2_shared));
+        INFO("BF_Polynomial2: " << msg);
+        CHECK(contains(msg, "has 10 WEIGHTS, but BF_Polynomial2 needs 15 "
+                            "weights"));
+    }
+    for (const auto* m : {&rbf_shared, &p2_shared}) {
         INFO("model: " << m->front());
         CHECK(load_error(potential("Ta", true, *m)) == "");
         const std::string msg = load_error(potential("Nb Ta", true, *m));
         INFO("message: " << msg);
         CHECK(contains(msg, "BIAS true"));
-        CHECK(contains(msg, "2 species"));
-        CHECK(contains(msg, "4 components"));
-        CHECK(contains(msg, "5 components"));
-        CHECK(contains(msg, "cannot evaluate"));
-        CHECK(contains(msg, "BIAS false"));
-        CHECK_FALSE(contains(msg, "BASIS must have"));
+        CHECK(contains(msg, "ATOM Nb Ta"));
+        CHECK(contains(msg, "one intercept column shared by all species"));
+        CHECK(contains(msg, "since 1.3.0-beta.1"));
+        CHECK(contains(msg, "retrain"));
+    }
+    for (const auto* m : {&rbf_per_species, &p2_per_species}) {
+        INFO("model: " << m->front());
+        CHECK(load_error(potential("Nb Ta", true, *m)) == "");
     }
 }
 

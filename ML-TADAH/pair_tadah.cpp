@@ -1125,9 +1125,11 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         lt->rhos.set_zero();
       }
       lt->aeds.set_zero();
+      // Column n holds the descriptor of atom IJ[n] (i1 i2 j1 j2): its
+      // intercept is that of IJ[n]'s species, not of local atom n.
       if (lt->bias > 0)
-        for (size_t n=0; n<lt->aeds.cols(); ++n ) {
-          const int k = lt->species_intercept_idx_per_type[type[n]-1];
+        for (size_t n=0; n<4; ++n ) {
+          const int k = lt->species_intercept_idx_per_type[type[IJ[n]]-1];
           if (k >= 0) lt->aeds(k, n) = 1.0;
         }
 
