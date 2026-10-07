@@ -212,7 +212,10 @@ void require_well_formed(const TableCertificate& cert,
     REQUIRE(cert.max_rel_der <= cert.tol);
 }
 
-double quickstart_bcc_nn() { return 3.5 * std::sqrt(3.0) / 2.0; }  // in.ml
+/* The bcc nearest-neighbour distance at a = 3.5 A, the lattice at which the
+ * Tadah! 1.6.0 quickstart in.ml ran the D2_LJ potential of
+ * ta_lj_cutdummy.tadah (its own bcc lattice is near 2.9 A). */
+double lj_fixture_bcc_nn() { return 3.5 * std::sqrt(3.0) / 2.0; }
 
 } // namespace
 
@@ -306,10 +309,10 @@ TEST_CASE("build_pair2b_collapse refuses on weight-size mismatch",
     REQUIRE(why.find("weight count") != std::string::npos);
 }
 
-TEST_CASE("pair collapse: the quickstart LJ table is certified to rel tol 1e-9 "
+TEST_CASE("pair collapse: the Ta D2_LJ table is certified to rel tol 1e-9 "
           "above r_lo, and r_lo is the smallest such node",
           "[eam_collapse][pair2b][certificate]") {
-    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_cutdummy.tadah", "Ta");
     LammpsTadah& lt = *lt_ptr;
     const auto w = weights_of(lt);
 
@@ -325,9 +328,10 @@ TEST_CASE("pair collapse: the quickstart LJ table is certified to rel tol 1e-9 "
     const TableCertificate& c = T.phi_cert;
     require_well_formed(c, T.phi);
 
-    /* The table serves the quickstart's own lattice: its bcc nearest
-     * neighbours (3.03) lie well inside the certified range. */
-    REQUIRE(c.r_lo < 0.95 * quickstart_bcc_nn());
+    /* The table serves the lattice the 1.6.0 quickstart ran this potential
+     * at: its bcc nearest neighbours (3.03) lie well inside the certified
+     * range. */
+    REQUIRE(c.r_lo < 0.95 * lj_fixture_bcc_nn());
     REQUIRE(c.max_rel_val > 0.0);
     REQUIRE(c.max_rel_der > 0.0);
 
@@ -378,7 +382,7 @@ TEST_CASE("pair collapse: the quickstart LJ table is certified to rel tol 1e-9 "
 TEST_CASE("pair collapse: the load-time report states the certified range, "
           "the tolerance and the analytic clause",
           "[eam_collapse][pair2b][certificate]") {
-    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_cutdummy.tadah", "Ta");
     LammpsTadah& lt = *lt_ptr;
     const auto w = weights_of(lt);
 
@@ -414,7 +418,7 @@ TEST_CASE("pair collapse: the load-time report states the certified range, "
 
 TEST_CASE("collapse_phi: analytic below r_lo, the table from r_lo up",
           "[eam_collapse][pair2b][certificate]") {
-    auto lt_ptr = load_pot("tests_data/pots/ta_lj_quickstart.tadah", "Ta");
+    auto lt_ptr = load_pot("tests_data/pots/ta_lj_cutdummy.tadah", "Ta");
     LammpsTadah& lt = *lt_ptr;
     const auto w = weights_of(lt);
 
@@ -477,7 +481,7 @@ TEST_CASE("pair collapse: a Cut_Cos taper is certified up to the cutoff "
                                          tadah::kCollapseNR, T, why));
     const TableCertificate& c = T.phi_cert;
     require_well_formed(c, T.phi);
-    REQUIRE(c.r_lo < 0.95 * quickstart_bcc_nn());
+    REQUIRE(c.r_lo < 0.95 * lj_fixture_bcc_nn());
 
     const Analytic f = independent_phi(lt, w);
     require_dense_within(c, dense_check(T.phi, c, f));
@@ -721,11 +725,11 @@ TEST_CASE("sample_table: the top node holds the limit from below at the "
           "cutoff",
           "[eam_collapse][pair2b][certificate]") {
     /* Cut_Dummy is 0 AT rc, so a D2 evaluated at r = rc returns 0 while the
-     * pair term just below rc is phi(rc-) != 0 (the quickstart: -0.0137).
+     * pair term just below rc is phi(rc-) != 0 (ta_lj_cutdummy: -0.0137).
      * A top node sampled at rc made the top segment interpolate towards 0
      * and gave pairs in [rc - dr, rc) forces of order |phi(rc-)| / dr. The
      * round-up fixture adds the case where k*dr at k = nr-1 overshoots rc. */
-    for (const char* pot : {"tests_data/pots/ta_lj_quickstart.tadah",
+    for (const char* pot : {"tests_data/pots/ta_lj_cutdummy.tadah",
                             "tests_data/pots/ta_lj_rc_roundup.tadah"}) {
         CAPTURE(pot);
         auto lt_ptr = load_pot(pot, "Ta");
