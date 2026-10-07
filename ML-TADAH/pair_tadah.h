@@ -28,6 +28,7 @@ PairStyle(tadah,PairTadah)
 #include "pair.h"
 #include <memory>
 #include <string>
+#include <vector>
 #include <tadah/tadah.lammps/lammps_tadah.h>
 
 namespace LAMMPS_NS {
@@ -81,6 +82,21 @@ namespace LAMMPS_NS {
        * load. Declared last: the offset of `lt` (read inline by drivers
        * through lammps_tadah()) is unchanged. */
       std::string last_load_error_;
+
+      /* The notices of the potential's keys that have no effect (a
+       * deprecated key such as SIGMA or MBLOCK, EMBF0/RHOFORM without a
+       * DM_REAM block: core::report_ignored_key_once), captured while
+       * load() builds the potential, in place of standard error: the
+       * capture gets each key once, also one the process reported before,
+       * so every load has them. coeff() writes them as LAMMPS warnings on
+       * rank 0 (the screen and log.lammps of this LAMMPS instance; every
+       * rank wrote them to standard error, once per process) and clears
+       * them. Declared after last_load_error_ for the same reason. */
+      std::vector<std::string> load_notices_;
+
+      /* Writes load_notices_ as LAMMPS warnings on rank 0, naming the
+       * potential @p pot, and clears them on every rank. */
+      void emit_load_notices(const std::string &pot);
 
       double single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                 double /*factor_coul*/, double /*factor_lj*/, double &fforce);
