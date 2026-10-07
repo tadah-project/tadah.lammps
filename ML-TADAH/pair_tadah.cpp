@@ -280,11 +280,11 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   lt->rhos.set_zero();
   lt->aeds.set_zero();
 
-  // One-hot intercept of every local and ghost atom (columns beyond
-  // nlocal + nghost are not atoms: their types are not set).
+  // The bias component of the atoms LAMMPS has, local and ghost: aeds has
+  // atom->nmax columns, and atom->type is not set past nlocal + nghost.
   if (lt->bias > 0) {
-    const int ntotal = atom->nlocal + atom->nghost;
-    for (int n=0; n<ntotal; ++n) {
+    const int nall = nlocal + atom->nghost;
+    for (int n=0; n<nall; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
@@ -738,11 +738,11 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
-  // One-hot intercept of every local and ghost atom (columns beyond
-  // nlocal + nghost are not atoms: their types are not set).
+  // The bias component of the atoms LAMMPS has, local and ghost: aeds has
+  // atom->nmax columns, and atom->type is not set past nlocal + nghost.
   if (lt->bias > 0) {
-    const int ntotal = atom->nlocal + atom->nghost;
-    for (int n=0; n<ntotal; ++n) {
+    const int nall = nlocal + atom->nghost;
+    for (int n=0; n<nall; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
