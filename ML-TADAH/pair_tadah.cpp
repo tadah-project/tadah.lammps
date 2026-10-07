@@ -280,11 +280,15 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
   lt->rhos.set_zero();
   lt->aeds.set_zero();
 
-  if (lt->bias > 0)
-    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+  // One-hot intercept of every local and ghost atom (columns beyond
+  // nlocal + nghost are not atoms: their types are not set).
+  if (lt->bias > 0) {
+    const int ntotal = atom->nlocal + atom->nghost;
+    for (int n=0; n<ntotal; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
+  }
 
   // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
   if (lt->capture_adjoint_state) {
@@ -734,8 +738,11 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
+  // One-hot intercept of every local and ghost atom (columns beyond
+  // nlocal + nghost are not atoms: their types are not set).
   if (lt->bias > 0) {
-    for (size_t n=0; n<lt->aeds.cols(); ++n) {
+    const int ntotal = atom->nlocal + atom->nghost;
+    for (int n=0; n<ntotal; ++n) {
       const int k = lt->species_intercept_idx_per_type[type[n]-1];
       if (k >= 0) lt->aeds(k, n) = 1.0;
     }
@@ -1118,9 +1125,11 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         lt->rhos.set_zero();
       }
       lt->aeds.set_zero();
+      // Column n holds the descriptor of atom IJ[n] (i1 i2 j1 j2): its
+      // intercept is that of IJ[n]'s species, not of local atom n.
       if (lt->bias > 0)
-        for (size_t n=0; n<lt->aeds.cols(); ++n ) {
-          const int k = lt->species_intercept_idx_per_type[type[n]-1];
+        for (size_t n=0; n<4; ++n ) {
+          const int k = lt->species_intercept_idx_per_type[type[IJ[n]]-1];
           if (k >= 0) lt->aeds(k, n) = 1.0;
         }
 

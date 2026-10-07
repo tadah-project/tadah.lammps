@@ -4,6 +4,7 @@
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/registry.h>
 #include <tadah/models/descriptors/dimer_element_pairs.h>
+#include <tadah/models/functions/weights_fit.h>
 
 #include <cmath>
 #include <stdexcept>
@@ -115,6 +116,13 @@ void LammpsTadah::initialize(int narg, char **arg)
   bias = S.bias;
   rsize = S.rsize; // size of the density array (rhoi + rhoip)
 
+  // The predictors' dot products run over the weights: refuse WEIGHTS,
+  // NMEAN/NSTDEV (NORM true) or basis vectors that do not fit this
+  // descriptor (e.g. a multi-species BIAS potential trained before 1.6.0,
+  // with one intercept column shared by all species) instead of computing
+  // with misaligned weights. pair_coeff reports it through error->all.
+  models::require_weights_fit(c, S.descriptor_size(), *fb);
+
   // Precompute per-LAMMPS-atom-type intercept lookup tables. With per-species
   // BIAS, every atom of LAMMPS type t contributes a fixed constant
   // bias_per_atom_type[t] to its energy; the descriptor's intercept column for
@@ -126,11 +134,12 @@ void LammpsTadah::initialize(int narg, char **arg)
   bias_per_atom_type.assign(ntypes, 0.0);
 
   if (bias > 0) {
+    const auto col = core::intercept_columns_by_Z(c);
     core::aed_type probe(S.descriptor_size());
     for (size_t t = 0; t < ntypes; ++t) {
       const int z = Z[t];
       if (z == 0) continue; // NULL slot — leave defaults
-      const int k = core::species_intercept_idx(z, c);
+      const int k = col[z];
       if (k < 0) continue;
       species_intercept_idx_per_type[t] = k;
       probe.set_zero();
