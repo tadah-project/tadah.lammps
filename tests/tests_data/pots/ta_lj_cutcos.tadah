@@ -1,5 +1,6 @@
-# The docs quickstart D2_LJ potential with a Cut_Cos taper instead of
-# Cut_Dummy: phi and phi' go to zero at the cutoff (tapered-cutoff floor).
+# The D2_LJ potential of ta_lj_cutdummy.tadah (the Tadah! 1.6.0 quickstart
+# potential) with a Cut_Cos taper instead of Cut_Dummy: phi and phi' go to
+# zero at the cutoff (tapered-cutoff floor).
 ATOM     Ta
 BIAS     false
 DIMER     false     0     false
