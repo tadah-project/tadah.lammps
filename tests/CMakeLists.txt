@@ -9,3 +9,9 @@ target_link_libraries(test_tadah.lammps PRIVATE Catch2 tadah.lammps)
 
 include(Catch)
 catch_discover_tests(test_tadah.lammps)
+
+# tadah.lammps_headers (ctest -L headers): every header of include/
+# compiles on its own and twice in a row (cmake-tools'
+# tadah_add_header_check). Before the fix: passes as well (a pin: no
+# Tadah.LAMMPS header failed when the check was added).
+tadah_add_header_check(tadah.lammps)
