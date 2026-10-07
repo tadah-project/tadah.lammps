@@ -85,12 +85,13 @@ namespace LAMMPS_NS {
 
       /* The notices of the potential's keys that have no effect (a
        * deprecated key such as SIGMA or MBLOCK, EMBF0/RHOFORM without a
-       * DM_REAM block: core::report_ignored_key, once per key and process),
-       * captured while load() builds the potential, in place of standard
-       * error. coeff() writes them as LAMMPS warnings on rank 0 (the screen
-       * and log.lammps, once per run; every rank wrote them to standard
-       * error) and clears them. Declared after last_load_error_ for the
-       * same reason. */
+       * DM_REAM block: core::report_ignored_key_once), captured while
+       * load() builds the potential, in place of standard error: the
+       * capture gets each key once, also one the process reported before,
+       * so every load has them. coeff() writes them as LAMMPS warnings on
+       * rank 0 (the screen and log.lammps of this LAMMPS instance; every
+       * rank wrote them to standard error, once per process) and clears
+       * them. Declared after last_load_error_ for the same reason. */
       std::vector<std::string> load_notices_;
 
       /* Writes load_notices_ as LAMMPS warnings on rank 0, naming the
