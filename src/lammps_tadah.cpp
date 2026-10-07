@@ -4,12 +4,46 @@
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/registry.h>
 #include <tadah/models/descriptors/dimer_element_pairs.h>
+#include <tadah/models/functions/basis_functions/bf_polynomial2.h>
+#include <tadah/models/functions/kernels/kern_base.h>
 
 #include <cmath>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 using namespace tadah;
+
+namespace {
+
+/* With BIAS true on several species pair_style tadah's descriptor has one
+ * bias component per species (S.bias of them), while tadah (MLIP) trains
+ * with one bias component shared by the species, S.bias - 1 components
+ * fewer: the descriptor size of a potential trained so, 0 when the two
+ * layouts agree (BIAS false, or one species). */
+std::size_t shared_bias_descriptor_size(const LammpsTadah& self)
+{
+    const std::size_t nb = static_cast<std::size_t>(self.S.bias);
+    return nb < 2 ? 0 : self.S.descriptor_size() - (nb - 1);
+}
+
+/* The refusal of a non-linear potential laid out for that descriptor. */
+std::string shared_bias_refusal(const LammpsTadah& self,
+                                const std::string& model)
+{
+    return model + ": the potential has BIAS true and " +
+           std::to_string(self.S.bias) + " species (ATOM). It is laid out "
+           "for a descriptor of " +
+           std::to_string(shared_bias_descriptor_size(self)) + " components, "
+           "with one bias component shared by the species, as tadah trains "
+           "it, but pair_style tadah's descriptor has one bias component per "
+           "species, " + std::to_string(self.S.descriptor_size()) +
+           " components. pair_style tadah cannot evaluate a non-linear "
+           "potential trained with BIAS true on several species; one trained "
+           "with BIAS false runs.";
+}
+
+}  // namespace
 
 /*-------------------------------------------*/
 /* helper that does the heavy initialisation */
@@ -55,6 +89,47 @@ void build_sub_objects(LammpsTadah& self)
         throw std::runtime_error("cannot build MD model "
                                  + self.c.get<std::string>("MODEL", 0));
     self.model.reset(model_ptr);
+
+    /* ---- a non-linear potential fits the descriptor ----
+     * Only here is the descriptor size known. A non-linear kernel compares
+     * each descriptor with its basis vectors (SBASIS vectors stored in
+     * BASIS; M_KRR_Core refuses WEIGHTS without a basis or with another
+     * number of vectors): vectors of another length read past one of the
+     * two in every K(b, x). BF_Polynomial2 has one weight per product
+     * x_i x_j, i <= j, of the D descriptor components, D(D+1)/2: other
+     * WEIGHTS read past them, or leave some out. */
+    const std::size_t dsize = self.S.descriptor_size();
+    const std::string model = self.c.get<std::string>("MODEL", 0) + " " +
+                              self.fb->get_label();
+    if (const auto* kb = dynamic_cast<const models::Kern_Base*>(self.fb.get())) {
+        const core::Matrix& b = kb->get_basis();
+        if (b.cols() > 0 && b.rows() != dsize) {
+            if (b.rows() == shared_bias_descriptor_size(self))
+                throw std::runtime_error(shared_bias_refusal(self, model));
+            throw std::runtime_error(
+                model + ": BASIS holds SBASIS " +
+                std::to_string(b.cols()) + " basis vectors of " +
+                std::to_string(b.rows()) + " values each, but the descriptor "
+                "of the potential has " + std::to_string(dsize) +
+                " components: BASIS must have SBASIS x " +
+                std::to_string(dsize) + " values.");
+        }
+    }
+    if (dynamic_cast<const models::BF_Polynomial2*>(self.fb.get())) {
+        const std::size_t nw =
+            self.c.contains("WEIGHTS") ? self.c.size("WEIGHTS") : 0;
+        if (nw != dsize * (dsize + 1) / 2) {
+            const std::size_t d = shared_bias_descriptor_size(self);
+            if (d > 0 && nw == d * (d + 1) / 2)
+                throw std::runtime_error(shared_bias_refusal(self, model));
+            throw std::runtime_error(
+                model + ": the potential has " + std::to_string(nw) +
+                " WEIGHTS, but the descriptor of the potential has " +
+                std::to_string(dsize) + " components: BF_Polynomial2 has one "
+                "weight per product x_i x_j (i <= j) of them, " +
+                std::to_string(dsize * (dsize + 1) / 2) + " weights.");
+        }
+    }
 }
 
 /*-------------------------------------------*/
