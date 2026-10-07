@@ -31,6 +31,7 @@ See the README file in the top-level LAMMPS directory.
 #include "neigh_request.h"
 
 #include <tadah/core/blueprint_parser.h>
+#include <tadah/core/key_notice.h>
 #include <tadah/models/descriptors/dm/rhoform.h>
 
 #include <algorithm>
@@ -1380,16 +1381,24 @@ void PairTadah::coeff(int narg, char **arg)
      *     the null lt dereferenced below. When the driver's load() of
      *     case 2 failed, its reason (last_load_error_) is in the message. */
     if (staged_extern_slot()) lt = staged_extern_slot();
-    else if (!lt)
+    else if (!lt) {
+      emit_load_notices("EXTERN (driver-provided)");  // of a failed load()
       error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential{}",
                  last_load_error_.empty()
                      ? std::string()
                      : " (last load() failed: " + last_load_error_ + ")");
+    }
   } else if (!lt) {  // not initialized yet; it may also be init externally by a driver
-    if (!PairTadah::load(narg, arg))
+    const bool loaded = PairTadah::load(narg, arg);
+    emit_load_notices(arg[2]);
+    if (!loaded)
       error->all(FLERR,"pair_coeff: failed to load Tadah potential from '{}': {}",
                  arg[2], last_load_error_);
   }
+  // A potential a driver loaded (load(Context)) before pair_coeff * * EXTERN.
+  emit_load_notices(strcmp(arg[2], "EXTERN") == 0
+                        ? std::string("EXTERN (driver-provided)")
+                        : std::string(arg[2]));
 
   /* Map the LAMMPS types to the potential's elements. A failure (an element
    * the potential does not have: "Symbol not in potential file: W") goes
@@ -1608,12 +1617,25 @@ double PairTadah::single(int i, int j, int itype, int jtype, double rsq,
 
 using tadah::LammpsTadah;
 
+void PairTadah::emit_load_notices(const std::string &pot)
+{
+  if (comm->me == 0)
+    for (const std::string &n : load_notices_)
+      error->warning(FLERR, "pair tadah: potential '{}': {}", pot, n);
+  load_notices_.clear();
+}
+
 bool PairTadah::load(int argc, char **argv)
 {
   last_load_error_.clear();
+  load_notices_.clear();
+  // The notices of the file's keys (parse and construction) go to
+  // coeff(), which writes them as LAMMPS warnings, not to stderr.
+  tadah::core::IgnoredKeyNoticeCapture notices;
   try
   {
     lt.reset(new tadah::LammpsTadah(argc, argv));
+    load_notices_ = notices.notices();
     return true;
   }
   catch (const std::exception& e)
@@ -1621,6 +1643,7 @@ bool PairTadah::load(int argc, char **argv)
     // Reported by coeff() through error->all: screen and log.lammps (rank
     // 0) and the exception every rank throws.
     last_load_error_ = e.what();
+    load_notices_ = notices.notices();
     lt.reset();                         // ensure we own nothing
     return false;
   }
@@ -1629,14 +1652,18 @@ bool PairTadah::load(int argc, char **argv)
 bool PairTadah::load(const tadah::core::Context& ctx)
 {
     last_load_error_.clear();
+    load_notices_.clear();
+    tadah::core::IgnoredKeyNoticeCapture notices;  // see load(argc, argv)
     try {
         lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
+        load_notices_ = notices.notices();
         return true;
     }
     catch (const std::exception& e) {
         // Reported by coeff() through error->all (pair_coeff * * EXTERN):
         // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
+        load_notices_ = notices.notices();
         lt.reset();
         return false;
     }
@@ -1657,11 +1684,15 @@ bool PairTadah::load(std::shared_ptr<tadah::LammpsTadah> shared_lt)
 bool PairTadah::load(tadah::core::Context&& ctx)
 {
     last_load_error_.clear();
+    load_notices_.clear();
+    tadah::core::IgnoredKeyNoticeCapture notices;  // see load(argc, argv)
     try {
         lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
+        load_notices_ = notices.notices();
         return true;
     }
     catch (const std::exception& e) {
+        load_notices_ = notices.notices();
         // Reported by coeff() through error->all (pair_coeff * * EXTERN):
         // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
