@@ -1,8 +1,9 @@
 // pair_style tadah loads (tadah::LammpsTadah, the object pair_coeff builds
 // from the potential file) a potential that carries a weight covariance:
 // WCOV and WNOISE, which `tadah train` writes for an OALGO 3 fit, and
-// SIGMA, which Tadah! 1.0.0 to 1.6.0 wrote instead (a deprecated key now:
-// one notice, not stored). pair_style tadah does not use the covariance.
+// SIGMA, which Tadah! 1.0.0 to 1.5.0 and the 1.6.0 development builds wrote
+// instead (a deprecated key now: one notice, not stored). pair_style tadah
+// does not use the covariance.
 //
 // The potential is the D2_LJ pair potential of
 // tests_data/pots/ta_lj_cutcos.tadah.
@@ -98,7 +99,8 @@ TEST_CASE("pair_style tadah loads a potential with WCOV and WNOISE",
 }
 
 /* Pins: a potential with a SIGMA line (an OALGO 3 potential of Tadah!
- * 1.0.0 to 1.6.0) loads as pair_coeff loads it, writes the deprecation
+ * 1.0.0 to 1.5.0 or a 1.6.0 development build) loads as pair_coeff loads
+ * it, writes the deprecation
  * notice of SIGMA ("WARNING: Deprecated key SIGMA is ignored: ...") once,
  * on standard error (pair_style tadah routes it to LAMMPS' warning, see
  * HPO's test_pair_tadah_notices.cpp), and its Context has no SIGMA.

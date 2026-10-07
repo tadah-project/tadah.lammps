@@ -5,6 +5,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **`pair_style tadah` writes the notices of a potential's keys that have no effect as LAMMPS warnings on rank 0**: a deprecated key (`SIGMA`, `MBLOCK`, ...), `EMBF0` or `RHOFORM` on a potential without a DM_REAM block. `pair_coeff` loads the potential under a `core::IgnoredKeyNoticeCapture` and writes each notice through `error->warning`, naming the potential (`WARNING: pair tadah: potential 'pot.tadah': Deprecated key SIGMA is ignored: ...`), so it is in log.lammps and on the screen once per run; it went to standard error only, once per process on every MPI rank, and log.lammps never had it. Also for a driver's `load(Context)` at `pair_coeff * * EXTERN`, and before the error of a failed load. Test: HPO's `test_pair_tadah_notices.cpp`.
+- A potential with the weight covariance of an `OALGO 3` fit, `WCOV` and `WNOISE` (Tadah.CORE), loads; `pair_style tadah` does not use it. A potential with `SIGMA`, which Tadah! 1.0.0 to 1.5.0 and the 1.6.0 development builds wrote instead, loads with one notice (the key is deprecated and ignored). A potential with `WCOV` and `WNOISE` is refused by `pair_style tadah` builds before this change ("Invalid key: WCOV"): use this release of the plugin with potentials trained by this release. Tests: `test_covariance_keys_load.cpp`, HPO's `test_pair_tadah_notices.cpp`.
+
 ### Added
 - Tests: `tadah.lammps_headers` (`ctest -L headers`, cmake-tools' `tadah_add_header_check`) compiles every header of `include/` on its own and twice in a row, with what a user of `tadah.lammps` gets. Both headers pass; the `ML-TADAH` pair-style sources are not checked.
 
