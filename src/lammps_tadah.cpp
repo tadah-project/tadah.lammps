@@ -4,9 +4,11 @@
 #include <tadah/core/periodic_table.h>
 #include <tadah/core/registry.h>
 #include <tadah/models/descriptors/dimer_element_pairs.h>
+#include <tadah/models/functions/kernels/kern_base.h>
 
 #include <cmath>
 #include <stdexcept>
+#include <string>
 #include <utility>
 
 using namespace tadah;
@@ -55,6 +57,25 @@ void build_sub_objects(LammpsTadah& self)
         throw std::runtime_error("cannot build MD model "
                                  + self.c.get<std::string>("MODEL", 0));
     self.model.reset(model_ptr);
+
+    /* ---- a kernel's basis vectors have the descriptor's length ----
+     * A non-linear kernel compares each descriptor with its basis vectors
+     * (SBASIS vectors stored in BASIS); M_KRR_Core refuses WEIGHTS without
+     * a basis or with another number of vectors, and only here is the
+     * descriptor size known. Vectors of another length read past one of
+     * the two in every K(b, x). */
+    if (const auto* kb = dynamic_cast<const models::Kern_Base*>(self.fb.get())) {
+        const core::Matrix& b = kb->get_basis();
+        const std::size_t dsize = self.S.descriptor_size();
+        if (b.cols() > 0 && b.rows() != dsize)
+            throw std::runtime_error(
+                "M_KRR " + self.fb->get_label() + ": BASIS holds SBASIS " +
+                std::to_string(b.cols()) + " basis vectors of " +
+                std::to_string(b.rows()) + " values each, but the descriptor "
+                "of the potential has " + std::to_string(dsize) +
+                " components: BASIS must have SBASIS x " +
+                std::to_string(dsize) + " values.");
+    }
 }
 
 /*-------------------------------------------*/
