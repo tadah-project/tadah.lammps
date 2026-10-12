@@ -1362,9 +1362,20 @@ void PairTadah::setup_eam_fastpath()
                    tadah::format_collapse_report(lt->eam_tables));
 }
 
-// REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
+/* REQUIRED: set coefficients for one i,j type pair, called from pair_coeff.
+ *
+ * A pair_coeff that pair_style tadah refuses leaves it without a potential,
+ * whatever refuses it: the argument checks below, Pair::map_element2type (a
+ * number of elements other than the number of types, every type NULL), the
+ * load of the file, initialize() (an element the potential does not have),
+ * an EXTERN line with no driver's potential to adopt, or a later step. The
+ * handler of this function-try-block releases the potential and rethrows
+ * the error, so a library driver that catches it cannot run the potential
+ * an earlier line gave (init_style() refuses a pair style without one). A
+ * line LAMMPS refuses before it calls the pair style (`pair_coeff 1 1 ...`,
+ * refused by Input::pair_coeff for a one_coeff style) does not reach it. */
 void PairTadah::coeff(int narg, char **arg)
-{
+try {
   if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
     error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
 
@@ -1415,7 +1426,6 @@ void PairTadah::coeff(int narg, char **arg)
       else if (!last_load_error_.empty())
         why = " (last load() failed: " + last_load_error_ + ")";
       if (!lt) emit_load_notices("EXTERN (driver-provided)");  // of a failed load()
-      release_potential();
       error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential{}",
                  why);
     }
@@ -1445,8 +1455,8 @@ void PairTadah::coeff(int narg, char **arg)
   try {
     lt->initialize(narg, arg);
   } catch (const std::exception& e) {
-    // A potential not mapped to the line's types is not run with.
-    release_potential();
+    // A potential not mapped to the line's types is not run with (the
+    // handler at the end of coeff() releases it).
     error->all(FLERR, "pair_coeff: failed to initialise Tadah potential '{}': {}",
                strcmp(arg[2], "EXTERN") == 0
                    ? std::string("EXTERN (driver-provided)")
@@ -1551,6 +1561,9 @@ void PairTadah::coeff(int narg, char **arg)
     comm_reverse = lt->S.dmb->rhoi_size()+lt->S.d2b->size();
     comm_forward = lt->S.dmb->rhoip_size()+lt->S.d2b->size()+lt->S.dmb->size();
   }
+} catch (...) {
+  release_potential();
+  throw;
 }
 
 void PairTadah::init_style()
