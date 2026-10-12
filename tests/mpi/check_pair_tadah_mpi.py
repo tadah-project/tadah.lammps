@@ -43,12 +43,36 @@ neighbour-list build in the 100 steps (atoms move between ranks), and each
 kernel variant must print, or not print, the fast-path line of pair_coeff,
 so that the case runs the kernel it names.
 
+The dimer case runs a DIMER potential, the published Tadah!N2 (tadah.n2:
+rigid N2 molecules, compute_dimers, which needs newton off), on 512 N2
+molecules that the script writes (atom_style bond, one bond each; 8x8x8
+cells of 4 A, 32 A, each molecule's centre moved by up to 0.3 A along each
+axis from its cell's centre and its bond turned to a direction drawn from a
+fixed seed; no molecule crosses the box edge) and compares step 0 (`run 0`)
+of the MPI lmp on 1, 2 and 4 ranks and on 4 ranks in a 4 1 1 grid (8 A
+sub-domains, less than the ghost cutoff of 14 A) with the reference run, to
+the step-0 tolerances above, and checks in every run, the reference
+included, that the per-atom energies sum to the energy:
+
+            sum(pe/atom) - PotEng      |d|   <= 1e-10 |PE|
+
+The molecules are not moved: dynamics of rigid molecules needs constraints
+(fix shake or rigid) that this check leaves out. The largest differences
+measured (PotEng -16.64 eV): forces 5e-14 eV/A (max|F| 68 eV/A), pe/atom
+1.1e-16 eV, stress/atom 4.5e-8 bar A^3 (max|S| 5.9e7), PotEng 2.8e-13 eV,
+pressure tensor 1.8e-8 bar (5.7e5) and sum(pe/atom) - PotEng 2.2e-13 eV,
+all far below the tolerances. A compute_dimers that sets the per-atom
+energy of each molecule pair instead of adding it fails the sum in every
+run.
+
 Exit status: 0 every comparison holds; 1 one does not, or a run fails, or an
 executable that is named is not one; 77 (Skipped) the MPI lmp or its launcher
 is not named.
 """
 import argparse
+import math
 import os
+import random
 import re
 import shlex
 import shutil
@@ -98,6 +122,19 @@ CASES = {
          ANY_FAST),
     ]),
 }
+# The dimer case (see the docstring): the potential, its element, the
+# molecules (cells per edge, cell size in A, the largest move of a centre
+# along each axis in A, the seed) and the legs (label, MPI ranks, processors
+# command), all on the one cell.
+DIMER_POT = "tadah.n2"
+DIMER_SPECIES = "N"
+DIMER_CELLS, DIMER_A, DIMER_JITTER, DIMER_SEED = 8, 4.0, 0.3, 7
+DIMER_LEGS = [
+    ("1 rank", 1, "* * *"),
+    ("2 ranks", 2, "* * *"),
+    ("4 ranks", 4, "* * *"),
+    ("4 ranks, 4 1 1", 4, "4 1 1"),
+]
 # (label, cell, MPI ranks, processors command)
 LEGS = [
     ("1 rank", "cell8", 1, "* * *"),
@@ -206,7 +243,9 @@ class Checker:
         return ok
 
 
-def compare(chk, ref_out, out, natoms):
+def compare_step0(chk, ref_out, out, natoms):
+    """The step-0 comparisons of @p out with @p ref_out: the dumps and the
+    first thermo row of each log. Returns the thermo blocks of both."""
     cols, r0 = read_dump(ref_out + ".0.dump")
     cols2, o0 = read_dump(out + ".0.dump")
     if cols != cols2 or set(r0) != set(o0) or len(r0) != natoms:
@@ -233,6 +272,11 @@ def compare(chk, ref_out, out, natoms):
     dp = max(abs(t0r[n] - t0o[n])
              for n in ("Pxx", "Pyy", "Pzz", "Pxy", "Pxz", "Pyz"))
     chk.check("step 0 pressure tensor (bar)", dp, 1e-8 * pscale)
+    return tr, to
+
+
+def compare(chk, ref_out, out, natoms):
+    tr, to = compare_step0(chk, ref_out, out, natoms)
 
     cols, rn = read_dump(ref_out + ".N.dump")
     _, on = read_dump(out + ".N.dump")
@@ -249,11 +293,11 @@ def compare(chk, ref_out, out, natoms):
               abs(tnr["PotEng"] - tno["PotEng"]), 1e-9 * abs(tnr["PotEng"]))
 
 
-def check_log(chk, path, nprocs, grid, expect, forbid, multi):
+def check_log(chk, path, nprocs, grid, expect, forbid, multi, nruns=2):
     with open(path) as f:
         log = f.read()
     procs = re.findall(r"^Loop time of .* on (\d+) procs", log, re.M)
-    ok = len(procs) == 2 and all(int(p) == nprocs for p in procs)
+    ok = len(procs) == nruns and all(int(p) == nprocs for p in procs)
     print(f"      {'runs on ' + str(nprocs) + ' rank(s)':<34} "
           f"{'ok' if ok else 'FAIL (' + ', '.join(procs) + ' procs)'}")
     if not ok:
@@ -284,9 +328,97 @@ def check_log(chk, path, nprocs, grid, expect, forbid, multi):
         chk.failures.append(f"{path}: kernel line")
 
 
+def write_dimers(path, bond):
+    """The molecules of the dimer case (see DIMER_*) as a LAMMPS data file
+    of atom_style bond: atoms 2m-1 and 2m are molecule m, bonded. Returns
+    the number of atoms."""
+    rng = random.Random(DIMER_SEED)
+    n, a = DIMER_CELLS, DIMER_A
+    box = n * a
+    atoms = []
+    for i in range(n):
+        for j in range(n):
+            for k in range(n):
+                c = [(q + 0.5) * a + rng.uniform(-DIMER_JITTER, DIMER_JITTER)
+                     for q in (i, j, k)]
+                while True:
+                    u = [rng.gauss(0.0, 1.0) for _ in range(3)]
+                    norm = math.sqrt(sum(x * x for x in u))
+                    if norm > 1e-3:
+                        break
+                for sign in (1.0, -1.0):
+                    p = [c[d] + sign * 0.5 * bond * u[d] / norm
+                         for d in range(3)]
+                    if not all(0.0 < x < box for x in p):
+                        raise Failure(f"dimer molecule {len(atoms) // 2 + 1}"
+                                      " crosses the box edge")
+                    atoms.append(p)
+    nmol = len(atoms) // 2
+    with open(path, "w") as f:
+        f.write(f"N2 molecules of check_pair_tadah_mpi.py (dimer case)\n\n"
+                f"{len(atoms)} atoms\n1 atom types\n{nmol} bonds\n"
+                f"1 bond types\n\n0 {box:g} xlo xhi\n0 {box:g} ylo yhi\n"
+                f"0 {box:g} zlo zhi\n\nMasses\n\n1 14.007\n\n"
+                f"Atoms # bond\n\n")
+        for idx, p in enumerate(atoms, 1):
+            f.write(f"{idx} {(idx + 1) // 2} 1 "
+                    f"{p[0]:.15f} {p[1]:.15f} {p[2]:.15f}\n")
+        f.write("\nBonds\n\n")
+        for m in range(1, nmol + 1):
+            f.write(f"{m} 1 {2 * m - 1} {2 * m}\n")
+    return len(atoms)
+
+
+def check_pe_sum(chk, out):
+    """sum(pe/atom) == PotEng at step 0 of the run @p out."""
+    with open(out + ".log") as f:
+        row = thermo_blocks(f.read())[0][0]
+    chk.check("step 0 sum(pe/atom) - PotEng (eV)",
+              abs(row["c_pesum"] - row["PotEng"]), 1e-10 * abs(row["PotEng"]))
+
+
+def run_dimer(chk, ref_cmd, ref_name, mpi_cmd, pots, workdir):
+    with open(os.path.join(pots, DIMER_POT)) as f:
+        dimer = re.search(r"^DIMER\s+\S+\s+(\S+)", f.read(), re.M)
+    if not dimer:
+        raise Failure(f"{DIMER_POT} has no DIMER line")
+    bond = float(dimer.group(1))
+    natoms = write_dimers(os.path.join(workdir, "dimers.data"), bond)
+    shutil.copy(os.path.join(pots, DIMER_POT), workdir)
+    print(f"dimer: {DIMER_POT} (compute_dimers), {natoms // 2} molecules, "
+          f"bond {bond} A, newton off; reference: {ref_name}")
+
+    def lmp_args(procs, out):
+        return ["-in", os.path.join(HERE, "run_dimer.in"),
+                "-log", out + ".log", "-screen", "none",
+                "-var", "procs", procs,
+                "-var", "data", "dimers.data",
+                "-var", "pot", DIMER_POT,
+                "-var", "species", DIMER_SPECIES,
+                "-var", "bond", repr(bond),
+                "-var", "out", out]
+
+    ref = "dimer_ref"
+    run(ref_cmd + lmp_args("* * *", ref), workdir, ref + ".log")
+    print(f"    reference ({natoms} atoms)")
+    check_log(chk, os.path.join(workdir, ref + ".log"), 1, "1 1 1", None,
+              ANY_FAST, False, nruns=1)
+    check_pe_sum(chk, os.path.join(workdir, ref))
+    for leg, n, procs in DIMER_LEGS:
+        out = f"dimer_np{n}_{procs.replace(' ', '')}".replace("*", "x")
+        run(mpi_cmd(n) + lmp_args(procs, out), workdir, out + ".log")
+        print(f"    MPI lmp, {leg} ({natoms} atoms)")
+        check_log(chk, os.path.join(workdir, out + ".log"), n, procs, None,
+                  ANY_FAST, False, nruns=1)
+        compare_step0(chk, os.path.join(workdir, ref),
+                      os.path.join(workdir, out), natoms)
+        check_pe_sum(chk, os.path.join(workdir, out))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--case", required=True, choices=sorted(CASES))
+    ap.add_argument("--case", required=True,
+                    choices=sorted(list(CASES) + ["dimer"]))
     ap.add_argument("--lmp-serial", default="")
     ap.add_argument("--lmp-mpi", default="")
     ap.add_argument("--mpiexec", default="")
@@ -320,11 +452,24 @@ def main():
     ref_cmd = [serial] if serial else mpi_cmd(1)
     ref_name = ("the serial lmp (TADAH_LMP_SERIAL)" if serial
                 else "the MPI lmp on 1 rank")
-    species, newtons, variants = CASES[a.case]
 
     shutil.rmtree(a.workdir, ignore_errors=True)
     os.makedirs(a.workdir)
     chk = Checker()
+    if a.case == "dimer":
+        try:
+            run_dimer(chk, ref_cmd, ref_name, mpi_cmd, a.pots, a.workdir)
+        except Failure as e:
+            print(f"FAILED: {e}")
+            return 1
+        if chk.failures:
+            print(f"FAILED: {len(chk.failures)} comparison(s) out of "
+                  f"tolerance or run check(s) failed")
+            return 1
+        print("PASSED")
+        return 0
+
+    species, newtons, variants = CASES[a.case]
     try:
         for cell, nx in CELLS.items():
             run(ref_cmd + ["-in", os.path.join(HERE, "make_cell.in"),
