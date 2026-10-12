@@ -1158,7 +1158,9 @@ void PairTadah::compute_dimers(int eflag, int vflag)
         }
       }
 
-      // Compute two-body and many-body energy
+      // Compute two-body and many-body energy. An atom belongs to the
+      // cluster of every molecule pair its molecule is in: its per-atom
+      // energy adds the energy of each, as eng_vdwl does.
       for (size_t n=0; n<4; ++n) {
         if (lt->initmb) {
           lt->S.dmb->calc_aed(lt->rhos.col(n),lt->aeds.col(n));
@@ -1170,7 +1172,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
           int I=IJ[midx[n].first];
           int J=IJ[midx[n].second];
           double ei = lt->model->epredict(lt->aeds.col(n));
-          if (eflag_atom) eatom[IJ[n]] = ei;
+          if (eflag_atom) eatom[IJ[n]] += ei;
           if (eflag_global) eng_vdwl += ei;
         }
       }
