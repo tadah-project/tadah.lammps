@@ -7,6 +7,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - Tests: `tadah.lammps_headers` (`ctest -L headers`, cmake-tools' `tadah_add_header_check`) compiles every header of `include/` on its own and twice in a row, with what a user of `tadah.lammps` gets. Both headers pass; the `ML-TADAH` pair-style sources are not checked.
+- Tests: `pair_coeff` (`LammpsTadah`) loads a D2_EAM + DM_EAM potential that `core::Context::write_potential` wrote with 6 and with 3 significant digits (`NUMERIC 6`, `NUMERIC 3`): Tadah.CORE now writes the cutoffs and radial grids exactly whatever NUMERIC is, so the potential records the setfl file's cutoff, which D2_EAM and DM_EAM compare exactly; it recorded the cutoff rounded and `pair_coeff` refused it (`D2_EAM: RCUT2B 4.51235 differs from the cutoff 4.51234567891 of the setfl file ...`). `test_numeric_exact_keys_load.cpp`.
 
 ## [1.6.0] — 2026-09-25
 
