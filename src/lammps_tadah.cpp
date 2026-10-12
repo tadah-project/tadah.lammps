@@ -97,8 +97,11 @@ void LammpsTadah::initialize(int narg, char **arg)
   // Map LAMMPS atom types to weight factors
   // e.g. pair_coaeff * * pot.tadah Ti Nb NULL
   // watom.resize(narg-3); // this includes NULL values
-  Z.resize(narg-3); // this includes NULL values
-                        // which want be set
+  // One entry per LAMMPS type, 0 for a NULL type. Every entry is set here:
+  // the same object is initialised by every pair_coeff * * EXTERN line that
+  // adopts it, which may map the types differently each time (resize() kept
+  // a NULL type's element of the previous mapping).
+  Z.assign(narg-3, 0);
   for (int i=3; i<narg; ++i) {
     std::string symbol=arg[i];
     if (symbol=="NULL") continue;

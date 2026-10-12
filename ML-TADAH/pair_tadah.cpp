@@ -59,6 +59,22 @@ void PairTadah::clear_staged_extern()
   staged_extern_slot().reset();
 }
 
+/* Sizes the per-atom descriptor and density arrays of the potential @p lt
+ * for the @p nmax atoms LAMMPS holds (local and ghost, atom->nmax). They
+ * belong to the potential object, which a pair_coeff can replace (a file,
+ * an EXTERN with another staged object) and a driver can share between
+ * LAMMPS instances, so their own size decides: a count kept by the pair
+ * style left the arrays of a new object empty, and the kernel wrote
+ * through them. */
+static void size_per_atom_arrays(tadah::LammpsTadah &lt, int nmax)
+{
+  const std::size_t n = static_cast<std::size_t>(nmax);
+  if (lt.rhos.rows() != lt.S.density_size() || lt.rhos.cols() != n)
+    lt.rhos.resize(lt.S.density_size(), n);
+  if (lt.aeds.rows() != lt.S.descriptor_size() || lt.aeds.cols() != n)
+    lt.aeds.resize(lt.S.descriptor_size(), n);
+}
+
 PairTadah::PairTadah(LAMMPS *lmp) : Pair(lmp)
 {
   tadah::core::PeriodicTable::initialize();
@@ -271,12 +287,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
 
   tadah::core::fd_type fd(lt->S.descriptor_size());
 
-  // grow arrays if necessary
-  if (atom->nmax > nmax) {
-    nmax = atom->nmax;
-    lt->rhos.resize(lt->S.density_size(),nmax);
-    lt->aeds.resize(lt->S.descriptor_size(),nmax);
-  }
+  size_per_atom_arrays(*lt, atom->nmax);
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
@@ -730,12 +741,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
   // fpsize x 3-directions
   tadah::core::fd_type fd(lt->S.descriptor_size());
 
-  // grow arrays if necessary
-  if (atom->nmax > nmax) {
-    nmax = atom->nmax;
-    lt->rhos.resize(lt->S.density_size(), nmax);
-    lt->aeds.resize(lt->S.descriptor_size(), nmax);
-  }
+  size_per_atom_arrays(*lt, atom->nmax);
 
   lt->rhos.set_zero();
   lt->aeds.set_zero();
@@ -1320,8 +1326,12 @@ void PairTadah::setup_eam_fastpath()
   if (lt->initmb && !(lt->S.dmb && lt->S.dmb->eam_form()))
     return;
 
+  /* The tables of this potential object, built by an earlier pair_coeff
+   * for the element of the one LAMMPS type: reused only for that element
+   * (an EXTERN line can map the type to another element of the potential). */
   if (lt->eam_tables.valid &&
-      lt->eam_tables.has_mb == lt->initmb) { // same potential object: reuse
+      lt->eam_tables.has_mb == lt->initmb &&
+      lt->eam_tables.Z == lt->Z[0]) {
     lt->eam_scratch.resize(lt->S.descriptor_size());
     lt->eam_fast = true;
     return;
@@ -1352,9 +1362,20 @@ void PairTadah::setup_eam_fastpath()
                    tadah::format_collapse_report(lt->eam_tables));
 }
 
-// REQUIRED: set coefficients for one i,j type pair, called from pair_coeff
+/* REQUIRED: set coefficients for one i,j type pair, called from pair_coeff.
+ *
+ * A pair_coeff that pair_style tadah refuses leaves it without a potential,
+ * whatever refuses it: the argument checks below, Pair::map_element2type (a
+ * number of elements other than the number of types, every type NULL), the
+ * load of the file, initialize() (an element the potential does not have),
+ * an EXTERN line with no driver's potential to adopt, or a later step. The
+ * handler of this function-try-block releases the potential and rethrows
+ * the error, so a library driver that catches it cannot run the potential
+ * an earlier line gave (init_style() refuses a pair style without one). A
+ * line LAMMPS refuses before it calls the pair style (`pair_coeff 1 1 ...`,
+ * refused by Input::pair_coeff for a one_coeff style) does not reach it. */
 void PairTadah::coeff(int narg, char **arg)
-{
+try {
   if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
     error->all(FLERR,"Pair style tadah requires * * for pair_coeff");
 
@@ -1376,26 +1397,50 @@ void PairTadah::coeff(int narg, char **arg)
     /* Sentinel filename: adopt a driver-provided potential. Precedence:
      *  1. potential staged for this thread (whole-script input->file()
      *     drivers -- see stage_extern());
-     *  2. lt pre-loaded via load() before this line executed (legacy
-     *     per-line driver pattern, kept for back-compat);
-     *  3. hard error. Previously this fell through to a CLI load of the
-     *     literal file "EXTERN" whose failure was silently ignored and
-     *     the null lt dereferenced below. When the driver's load() of
-     *     case 2 failed, its reason (last_load_error_) is in the message. */
-    if (staged_extern_slot()) lt = staged_extern_slot();
-    else if (!lt) {
-      emit_load_notices("EXTERN (driver-provided)");  // of a failed load()
+     *  2. a potential the driver gave this pair style through load()
+     *     before this line executed (legacy per-line driver pattern), kept
+     *     by every later EXTERN line until a pair_coeff loads a file or
+     *     adopts a staged potential;
+     *  3. hard error, also when the pair style holds a potential that is
+     *     not the driver's: one an earlier `pair_coeff * * <file>` loaded,
+     *     or one an earlier EXTERN adopted from the staged slot, which the
+     *     driver has cleared since (both were adopted again without a
+     *     word: a script ran with a potential it had not asked for). When
+     *     the driver's load() of case 2 failed, its reason
+     *     (last_load_error_) is in the message. */
+    if (staged_extern_slot()) {
+      lt = staged_extern_slot();
+      lt_source_ = PotentialSource::Staged;
+      lt_file_.clear();
+    } else if (!(lt && lt_source_ == PotentialSource::DriverLoad)) {
+      std::string why;
+      if (lt && lt_source_ == PotentialSource::File)
+        why = " (pair_style tadah holds the potential of '" + lt_file_ +
+              "', loaded by an earlier pair_coeff; EXTERN adopts a potential "
+              "the driver staged or gave this pair style with load())";
+      else if (lt && lt_source_ == PotentialSource::Staged)
+        why = " (pair_style tadah holds the potential an earlier pair_coeff "
+              "* * EXTERN adopted from the staged slot, which the driver has "
+              "cleared since; EXTERN adopts a potential the driver staged or "
+              "gave this pair style with load())";
+      else if (!last_load_error_.empty())
+        why = " (last load() failed: " + last_load_error_ + ")";
+      if (!lt) emit_load_notices("EXTERN (driver-provided)");  // of a failed load()
       error->all(FLERR,"pair_coeff * * EXTERN: no staged or pre-loaded Tadah potential{}",
-                 last_load_error_.empty()
-                     ? std::string()
-                     : " (last load() failed: " + last_load_error_ + ")");
+                 why);
     }
-  } else if (!lt) {  // not initialized yet; it may also be init externally by a driver
+  } else {
+    /* A file: always read, replacing any potential the pair style holds
+     * (an earlier file's, a driver's load() or an adopted staged one,
+     * which its slot keeps alive for the driver), also after `pair_style
+     * tadah` again, which keeps the pair style and its potential. */
     const bool loaded = PairTadah::load(narg, arg);
     emit_load_notices(arg[2]);
-    if (!loaded)
+    if (!loaded)   // load() left the pair style without a potential
       error->all(FLERR,"pair_coeff: failed to load Tadah potential from '{}': {}",
                  arg[2], last_load_error_);
+    lt_source_ = PotentialSource::File;
+    lt_file_ = arg[2];
   }
   // A potential a driver loaded (load(Context)) before pair_coeff * * EXTERN.
   emit_load_notices(strcmp(arg[2], "EXTERN") == 0
@@ -1410,6 +1455,8 @@ void PairTadah::coeff(int narg, char **arg)
   try {
     lt->initialize(narg, arg);
   } catch (const std::exception& e) {
+    // A potential not mapped to the line's types is not run with (the
+    // handler at the end of coeff() releases it).
     error->all(FLERR, "pair_coeff: failed to initialise Tadah potential '{}': {}",
                strcmp(arg[2], "EXTERN") == 0
                    ? std::string("EXTERN (driver-provided)")
@@ -1514,6 +1561,9 @@ void PairTadah::coeff(int narg, char **arg)
     comm_reverse = lt->S.dmb->rhoi_size()+lt->S.d2b->size();
     comm_forward = lt->S.dmb->rhoip_size()+lt->S.d2b->size()+lt->S.dmb->size();
   }
+} catch (...) {
+  release_potential();
+  throw;
 }
 
 void PairTadah::init_style()
@@ -1521,6 +1571,12 @@ void PairTadah::init_style()
 {
   if (atom->tag_enable == 0)
     error->all(FLERR,"Pair style tadah requires atom IDs");
+  /* LAMMPS runs once every type has a pair_coeff (setflag), which a
+   * pair_coeff whose load or mapping failed has set; a driver that caught
+   * that error (or whose load() failed) must not run: there is no potential. */
+  if (!lt)
+    error->all(FLERR,"pair_style tadah has no potential: the last pair_coeff, "
+                     "or a driver's PairTadah::load(), failed (see its error)");
 
   if (lt->dimer) {
     neighbor->add_request(this, NeighConst::REQ_FULL);
@@ -1619,6 +1675,13 @@ double PairTadah::single(int i, int j, int itype, int jtype, double rsq,
 
 using tadah::LammpsTadah;
 
+void PairTadah::release_potential()
+{
+  lt.reset();
+  lt_source_ = PotentialSource::None;
+  lt_file_.clear();
+}
+
 void PairTadah::emit_load_notices(const std::string &pot)
 {
   if (comm->me == 0)
@@ -1637,6 +1700,9 @@ bool PairTadah::load(int argc, char **argv)
   try
   {
     lt.reset(new tadah::LammpsTadah(argc, argv));
+    // A driver's; coeff() marks the potential of its file line as File.
+    lt_source_ = PotentialSource::DriverLoad;
+    lt_file_.clear();
     load_notices_ = notices.notices();
     return true;
   }
@@ -1646,7 +1712,7 @@ bool PairTadah::load(int argc, char **argv)
     // 0) and the exception every rank throws.
     last_load_error_ = e.what();
     load_notices_ = notices.notices();
-    lt.reset();                         // ensure we own nothing
+    release_potential();                // ensure we own nothing
     return false;
   }
 }
@@ -1658,6 +1724,8 @@ bool PairTadah::load(const tadah::core::Context& ctx)
     tadah::core::IgnoredKeyNoticeCapture notices;  // see load(argc, argv)
     try {
         lt.reset(new tadah::LammpsTadah(ctx));    // one copy inside ctor
+        lt_source_ = PotentialSource::DriverLoad;
+        lt_file_.clear();
         load_notices_ = notices.notices();
         return true;
     }
@@ -1666,7 +1734,7 @@ bool PairTadah::load(const tadah::core::Context& ctx)
         // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
         load_notices_ = notices.notices();
-        lt.reset();
+        release_potential();
         return false;
     }
 }
@@ -1678,8 +1746,14 @@ bool PairTadah::load(std::shared_ptr<tadah::LammpsTadah> shared_lt)
      * initialize() + setup_eam_fastpath() on it (both idempotent), so all
      * per-pair_coeff state is refreshed exactly as in the ctx path. */
     lt = std::move(shared_lt);
-    if (lt) last_load_error_.clear();
-    else last_load_error_ = "no potential given (null shared LammpsTadah)";
+    lt_file_.clear();
+    if (lt) {
+      last_load_error_.clear();
+      lt_source_ = PotentialSource::DriverLoad;
+    } else {
+      last_load_error_ = "no potential given (null shared LammpsTadah)";
+      lt_source_ = PotentialSource::None;
+    }
     return static_cast<bool>(lt);
 }
 
@@ -1690,6 +1764,8 @@ bool PairTadah::load(tadah::core::Context&& ctx)
     tadah::core::IgnoredKeyNoticeCapture notices;  // see load(argc, argv)
     try {
         lt.reset(new tadah::LammpsTadah(std::move(ctx)));   // zero copies
+        lt_source_ = PotentialSource::DriverLoad;
+        lt_file_.clear();
         load_notices_ = notices.notices();
         return true;
     }
@@ -1698,7 +1774,7 @@ bool PairTadah::load(tadah::core::Context&& ctx)
         // Reported by coeff() through error->all (pair_coeff * * EXTERN):
         // screen and log.lammps, and the exception a driver catches.
         last_load_error_ = e.what();
-        lt.reset();
+        release_potential();
         return false;
     }
 }

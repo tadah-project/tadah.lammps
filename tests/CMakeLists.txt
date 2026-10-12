@@ -25,13 +25,19 @@ catch_discover_tests(test_tadah.lammps)
 #                the generic kernel, newton on and off
 #   nonlinear    M_BLR BF_Polynomial2: the full-list kernel
 #   pair_2b      a D2_LJ pair potential: compute_2b_fast and compute_2b
+#   dimer        the published Tadah!N2 DIMER potential (compute_dimers,
+#                newton off, atom_style bond) on 512 molecules: step 0 only,
+#                and sum(pe/atom) == PotEng in every run
 # Pins: every comparison holds, every run reports its rank count and grid,
-# atoms move between ranks (a neighbour-list build) and each case runs the
-# kernel it names (the fast-path line of pair_coeff, or none).
+# atoms move between ranks (a neighbour-list build; not in the dimer case,
+# which does not move them) and each case runs the kernel it names (the
+# fast-path line of pair_coeff, or none).
 # Before the fix: passes as well (a pin: pair_style tadah has no
 # ghost-communication defect on these kernels; a pair_tadah that skips the
 # reverse comm of compute_2b_mb_half, the forward comm of the EAM fast path,
-# or packs the wrong dF/drho component fails the cases of that kernel).
+# or packs the wrong dF/drho component fails the cases of that kernel, and
+# one whose compute_dimers sets each atom's per-atom energy to its energy in
+# one molecule pair, as before the DIMER pe/atom fix, fails the dimer case).
 # The executables (empty: the entries are Skipped, exit code 77, naming what
 # is missing; a value that names no executable is a failure):
 set(TADAH_LMP_MPI "" CACHE FILEPATH
@@ -46,7 +52,7 @@ find_package(Python3 COMPONENTS Interpreter REQUIRED)
 # One --key=value token per argument: MLIP's add_test() drops an empty
 # argument and splits one that contains ';'.
 string(REPLACE ";" " " _lmp_preflags "${TADAH_LMP_MPIEXEC_PREFLAGS}")
-foreach(_case quickstart two_species dm_ream nonlinear pair_2b)
+foreach(_case quickstart two_species dm_ream nonlinear pair_2b dimer)
   add_test(NAME tadah.lammps_mpi_${_case}
     COMMAND ${Python3_EXECUTABLE}
       ${CMAKE_CURRENT_SOURCE_DIR}/mpi/check_pair_tadah_mpi.py

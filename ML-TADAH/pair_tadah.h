@@ -68,10 +68,11 @@ namespace LAMMPS_NS {
        * per candidate potential and hand it to every PairTadah recreated by
        * the scripts' `clear` cycles — see load(shared_ptr). The object holds
        * per-simulation scratch (aeds/rhos/eam_*), so sharing is only valid
-       * across sims that run sequentially (per-thread). */
+       * across sims that run sequentially (per-thread). The kernels size
+       * that scratch by its own size, for the atoms LAMMPS holds: a
+       * pair_coeff can give the pair style another object at any time. */
       std::shared_ptr<tadah::LammpsTadah> lt;
 
-      int nmax=0;
       void allocate();
 
       /* e.what() of the last failed load(): coeff() puts it in its
@@ -98,6 +99,23 @@ namespace LAMMPS_NS {
        * potential @p pot, and clears them on every rank. */
       void emit_load_notices(const std::string &pot);
 
+      /* Where lt came from. `pair_coeff * * <file>` always loads its file
+       * (File); `pair_coeff * * EXTERN` adopts the potential staged for
+       * this thread (Staged) or one a driver gave the pair style through a
+       * load() overload (DriverLoad), and refuses any other: one an earlier
+       * pair_coeff loaded from a file, or one an earlier EXTERN adopted from
+       * the staged slot, which the driver has cleared since. Declared after
+       * load_notices_ for the same reason as last_load_error_. */
+      enum class PotentialSource { None, File, DriverLoad, Staged };
+      PotentialSource lt_source_ = PotentialSource::None;
+      std::string lt_file_;   // the file of a File potential
+
+      /* Leaves the pair style without a potential (lt, lt_source_,
+       * lt_file_): done by a pair_coeff that fails, so that a library
+       * driver that catches its error cannot run with the potential the
+       * line did not give (init_style() refuses a pair style without one). */
+      void release_potential();
+
       double single(int /*i*/, int /*j*/, int itype, int jtype, double rsq,
                 double /*factor_coul*/, double /*factor_lj*/, double &fforce);
 
@@ -109,7 +127,11 @@ namespace LAMMPS_NS {
       /* Each returns false on failure and keeps the reason in
        * last_load_error(); none prints it: coeff() reports it through
        * error->all (the CLI overload directly, the Context overloads at
-       * pair_coeff * * EXTERN). */
+       * pair_coeff * * EXTERN). A failed load leaves the pair style without
+       * a potential. A potential a driver gives here is adopted by
+       * `pair_coeff * * EXTERN` (when nothing is staged), by every EXTERN
+       * line until a pair_coeff loads a file or adopts a staged potential;
+       * `pair_coeff * * <file>` replaces it. */
       bool load(int argc, char **argv);                          // CLI
       bool load(const tadah::core::Context& ctx);   // copy from l-value
       bool load(tadah::core::Context&& ctx);        // move from r-value
@@ -125,7 +147,11 @@ namespace LAMMPS_NS {
        * the Pair but not the staged potential); the driver clears it once
        * the run finishes. Per-thread because drivers run one LAMMPS
        * instance per worker thread/process with a strict
-       * stage -> run -> clear sequence. */
+       * stage -> run -> clear sequence. Once the slot is cleared, an EXTERN
+       * line no longer adopts the potential an earlier one took from it
+       * (an error, unless the driver stages one again or gives one with
+       * load()); a pair_coeff with a file replaces it in the pair style and
+       * the slot keeps it alive for the driver. */
       static void stage_extern(std::shared_ptr<tadah::LammpsTadah> pot);
       static void clear_staged_extern();
 
