@@ -11,6 +11,7 @@
 #include "catch2/catch.hpp"
 
 #include <tadah/core/context.h>
+#include <tadah/core/key_notice.h>
 #include <tadah/core/logger.h>
 #include <tadah/core/periodic_table.h>
 #include <tadah/tadah.lammps/lammps_tadah.h>
@@ -145,4 +146,65 @@ TEST_CASE("pair_style tadah ignores the training record of a potential",
         lt_bare->c.stored_value("VERBOSE"));
   CHECK(lt_with->c.stored_value("VERBOSE") != std::optional<std::string>("2"));
   CHECK(level_with == level_bare);
+}
+
+/* The key lines of the run settings a potential of an earlier version can
+ * have (every 1.5.x best_pot.tadah has HPOTARGET, VERBOSE and NUMERIC, and
+ * VALIDATION when its run had a validation file), VERBOSE 2 among them. */
+static const char *const kOldRunSettings = "VALIDATION config.val\n"
+                                           "HPOTARGET config.hpo\n"
+                                           "VERBOSE 2\n"
+                                           "NUMERIC 12\n"
+                                           "OUTFILE pot.tadah\n"
+                                           "AUDIT warn\n"
+                                           "AUDIT_SAMPLE 2\n"
+                                           "HEALTH_LOG full\n";
+
+/* Pins: pair_coeff loads a potential of an earlier version whose key lines
+ * include the run settings of the run that wrote it -- VALIDATION,
+ * HPOTARGET, VERBOSE 2, NUMERIC 12, OUTFILE, AUDIT, AUDIT_SAMPLE and
+ * HEALTH_LOG -- to the same context, key by key, as the potential without
+ * them, so the model's VERBOSE is the one its construction stores (not
+ * 2), and the Tadah log level stays where LAMMPS has it (ERROR, the
+ * Logger's own; pair_style tadah sets none), with no notice: the lines are
+ * not read (core::run_setting_keys()).
+ * Before the fix: core::CoreUserConfigParser stored the eight, and adding
+ * VERBOSE 2 to the context set the Tadah log level of the LAMMPS process to
+ * INFO (Tadah's INFO lines on every rank's standard output for the rest of
+ * the run) and the model's verbosity to 2: the context, VERBOSE and level
+ * checks fail. */
+TEST_CASE("pair_style tadah reads no run setting of an older potential, and "
+          "its VERBOSE sets no log level",
+          "[lammps_tadah][training_record][run_settings]") {
+  tadah::core::PeriodicTable::initialize();
+  auto &log = tadah::core::Logger::instance();
+  const auto old_level = log.getLogLevel();
+  const std::string body = pair_potential();
+  const TempFile bare("run_settings_bare.tadah", body);
+  const TempFile older("run_settings_older.tadah", body + kOldRunSettings);
+
+  log.setLogLevel(tadah::core::LogLevel::ERROR);
+  std::unique_ptr<tadah::LammpsTadah> lt_bare = load(bare.path);
+  std::vector<std::string> notices;
+  std::unique_ptr<tadah::LammpsTadah> lt_older;
+  {
+    tadah::core::IgnoredKeyNoticeCapture capture;  // as pair_coeff loads
+    lt_older = load(older.path);
+    notices = capture.notices();
+  }
+  const auto level = log.getLogLevel();
+  log.setLogLevel(old_level);
+
+  REQUIRE(lt_bare != nullptr);
+  REQUIRE(lt_older != nullptr);
+  CHECK(level == tadah::core::LogLevel::ERROR);
+  CHECK(notices.empty());
+  CHECK(lt_older->c.storage_snapshot() == lt_bare->c.storage_snapshot());
+  for (const char *key : {"VALIDATION", "HPOTARGET", "NUMERIC", "OUTFILE",
+                          "AUDIT", "AUDIT_SAMPLE", "HEALTH_LOG"}) {
+    INFO("key " << key);
+    CHECK_FALSE(lt_older->c.has_stored(key));
+  }
+  CHECK(lt_older->c.stored_value("VERBOSE") !=
+        std::optional<std::string>("2"));
 }
