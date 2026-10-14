@@ -149,8 +149,8 @@ TEST_CASE("pair_style tadah ignores the training record of a potential",
 }
 
 /* The key lines of the run settings a potential of an earlier version can
- * have (every 1.5.x best_pot.tadah has VALIDATION, HPOTARGET, VERBOSE and
- * NUMERIC), VERBOSE 2 among them. */
+ * have (every 1.5.x best_pot.tadah has HPOTARGET, VERBOSE and NUMERIC, and
+ * VALIDATION when its run had a validation file), VERBOSE 2 among them. */
 static const char *const kOldRunSettings = "VALIDATION config.val\n"
                                            "HPOTARGET config.hpo\n"
                                            "VERBOSE 2\n"
