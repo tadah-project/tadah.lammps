@@ -24,6 +24,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [1.6.0] — 2026-09-25
 
 ### Added
+- Tests: `pair_style tadah ignores the training record of a potential` (`test_training_record_load.cpp`): `pair_coeff` loads a potential whose key lines follow the training record that tadah train, tadah hpo and tadah refit write (owner decision, MK, 2026-10-14; Tadah.MLIP) to the context of the same key lines without it, reads none of the record's keys (a `# VERBOSE 2` there leaves the log level as it is) and loads a potential without a record as before. A pin: the reader, `CoreUserConfigParser`, skips every `#` line; `pair_style tadah` is unchanged.
 - `PairTadah::stage_extern(std::shared_ptr<tadah::LammpsTadah>)` / `clear_staged_extern()`: per-thread staging slot for the `EXTERN` potential handoff. Drivers that execute whole scripts through LAMMPS's `input->file()` (where per-line `load()` interleaving is impossible) stage the candidate potential once before the run; every `pair_coeff * * EXTERN ...` the script executes adopts it in `coeff()`. The slot lives outside the Pair object, so it survives `clear` cycles; precedence in `coeff()` is staged slot, then a pre-loaded `lt` (the 1.4.0 per-line driver pattern, unchanged), then a hard error.
 
 ### Changed
