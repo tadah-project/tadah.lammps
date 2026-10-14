@@ -1,10 +1,12 @@
 // pair_style tadah (tadah::LammpsTadah, the object pair_coeff builds from
 // the potential file) and the training record of a potential: the comment
 // block that tadah train, tadah hpo and tadah refit write above the key
-// lines, naming the run's DBFILE, VALIDATION, HPOTARGET, UNCERTAINTY,
-// VERBOSE, NUMERIC, OUTFILE, AUDIT, AUDIT_SAMPLE and HEALTH_LOG for the
-// user's record (MK's decision of 2026-10-14). The block is comments only:
-// pair_coeff reads neither its keys nor its values.
+// lines, naming the run's DBFILE, the keys that prepared its training data
+// (EFILTER, FFILTER, ESHIFT_ATOM, ESHIFT_DBATOM, EWEIGHT_TEMP,
+// ZERO_COM_FORCE, WDBFILE, WDBFILE_AUTO), VALIDATION, HPOTARGET,
+// UNCERTAINTY, VERBOSE, NUMERIC, OUTFILE, AUDIT, AUDIT_SAMPLE and HEALTH_LOG
+// for the user's record (MK's decisions of 2026-10-14). The block is
+// comments only: pair_coeff reads neither its keys nor its values.
 
 #include "catch2/catch.hpp"
 
@@ -58,10 +60,19 @@ std::string pair_potential() {
 /* The training record of a run whose configuration set every key a
  * potential keeps only there, VERBOSE 2 among them (a key line VERBOSE 2
  * would set the Tadah log level of the process), with a DBFILE that does
- * not exist. */
+ * not exist, as tadah writes it (its opening line said "(not read by
+ * tadah)" before MK's decision of 2026-10-14, option 2). */
 const char *const kRecord =
-    "# --- training record (not read by tadah) ---\n"
+    "# --- training record (no key is read from it) ---\n"
     "# DBFILE no_such_dataset.db other.db\n"
+    "# EFILTER -12 -2\n"
+    "# FFILTER 20\n"
+    "# ESHIFT_ATOM true\n"
+    "# ESHIFT_DBATOM true\n"
+    "# EWEIGHT_TEMP 300\n"
+    "# ZERO_COM_FORCE true\n"
+    "# WDBFILE 1 0\n"
+    "# WDBFILE_AUTO 1\n"
     "# VALIDATION config.val\n"
     "# HPOTARGET config.hpo\n"
     "# UNCERTAINTY true\n"
@@ -87,17 +98,19 @@ std::unique_ptr<tadah::LammpsTadah> load(const std::string &path) {
 }  // namespace
 
 /* Pins: pair_coeff loads a potential whose key lines follow its training
- * record (DBFILE of a dataset that does not exist, VALIDATION, HPOTARGET,
- * UNCERTAINTY true, VERBOSE 2, NUMERIC 9, OUTFILE, AUDIT error,
- * AUDIT_SAMPLE 64, HEALTH_LOG full) to the same context, key by key, as the
- * same key lines without the block (a potential without a record, as every
- * earlier version wrote, loads as before), with none of the ten keys but
- * VERBOSE, which the model's construction stores at its default as for the
- * potential without the block (not the record's 2), and leaves the Tadah
- * log level where the potential without the block leaves it.
+ * record (DBFILE of a dataset that does not exist, the eight keys that
+ * prepared the training data, VALIDATION, HPOTARGET, UNCERTAINTY true,
+ * VERBOSE 2, NUMERIC 9, OUTFILE, AUDIT error, AUDIT_SAMPLE 64, HEALTH_LOG
+ * full) to the same context, key by key, as the same key lines without the
+ * block (a potential without a record, as every earlier version wrote,
+ * loads as before), with none of the eighteen keys but VERBOSE, which the
+ * model's construction stores at its default as for the potential without
+ * the block (not the record's 2), and leaves the Tadah log level where the
+ * potential without the block leaves it.
  * Before the fix: passes as well (a pin: core::CoreUserConfigParser, the
  * reader of pair_coeff, skips every line whose first non-blank character
- * is '#', and the training record is a block of such lines). */
+ * is '#', and the training record is a block of such lines, whatever its
+ * opening line says). */
 TEST_CASE("pair_style tadah ignores the training record of a potential",
           "[lammps_tadah][training_record]") {
   tadah::core::PeriodicTable::initialize();
@@ -118,9 +131,11 @@ TEST_CASE("pair_style tadah ignores the training record of a potential",
   REQUIRE(lt_bare != nullptr);
   REQUIRE(lt_with != nullptr);
   CHECK(lt_with->c.storage_snapshot() == lt_bare->c.storage_snapshot());
-  for (const char *key : {"DBFILE", "VALIDATION", "HPOTARGET", "UNCERTAINTY",
-                          "NUMERIC", "OUTFILE", "AUDIT", "AUDIT_SAMPLE",
-                          "HEALTH_LOG"}) {
+  for (const char *key :
+       {"DBFILE", "EFILTER", "FFILTER", "ESHIFT_ATOM", "ESHIFT_DBATOM",
+        "EWEIGHT_TEMP", "ZERO_COM_FORCE", "WDBFILE", "WDBFILE_AUTO",
+        "VALIDATION", "HPOTARGET", "UNCERTAINTY", "NUMERIC", "OUTFILE",
+        "AUDIT", "AUDIT_SAMPLE", "HEALTH_LOG"}) {
     INFO("key " << key);
     CHECK_FALSE(lt_with->c.has_stored(key));
   }
