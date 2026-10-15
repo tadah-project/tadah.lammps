@@ -13,7 +13,7 @@
 
 namespace tadah {
 
-/* Phase 3 (HPO_LAMMPS_GRADIENTS) IFT-adjoint state.
+/* IFT-adjoint state for the HPO gradients of LAMMPS observables.
  *
  * When LammpsTadah::capture_adjoint_state is true, the pair_tadah compute_*
  * kernels populate this snapshot during the regular force evaluation. The
@@ -23,9 +23,8 @@ namespace tadah {
  *     (atom block; -d^2 E / d x dW per BF_Linear).
  *   - dvirial_dW[alpha * n_desc + c] = -d^2 E / d eps_alpha dW_c
  *     (box block; analogous "force-side" sign so the chain kernel uses
- *     a single + sign across atom and box rows). Iso strain only in
- *     Phase 3.7.5 (`box_dofs == 1`); aniso Voigt-6 (`box_dofs == 6`)
- *     deferred to a follow-up.
+ *     a single + sign across atom and box rows). Iso strain
+ *     (`box_dofs == 1`) or aniso Voigt-6 (`box_dofs == 6`).
  *
  * `box_dofs` is read by the compute_* reset/accumulate paths; the host
  * sets it before toggling `capture_adjoint_state=true`. reset() preserves
@@ -41,7 +40,7 @@ struct AdjointSnapshot {
     std::vector<double> dvirial_dW;     // size = box_dofs * n_desc (may be 0)
     std::size_t         n_atoms  = 0;
     std::size_t         n_desc   = 0;
-    int                 box_dofs = 0;   // 0 (none), 1 (iso); 6 (Voigt) deferred
+    int                 box_dofs = 0;   // 0 (none), 1 (iso), 6 (Voigt)
     bool                valid    = false;
 
     void reset(std::size_t n_atoms_, std::size_t n_desc_) {
@@ -153,7 +152,7 @@ public:
     std::vector<double> eam_fp;
     CollapseScratch     eam_scratch;
 
-    /* Phase 3 IFT-adjoint snapshot. See AdjointSnapshot doc above.
+    /* IFT-adjoint snapshot. See AdjointSnapshot doc above.
      * Default off: production MD pays one predicted-false branch per
      * compute_* call. Toggled true by the HPO host after minimize()
      * reaches the relaxed state x*, then one more pair->compute(0,0)

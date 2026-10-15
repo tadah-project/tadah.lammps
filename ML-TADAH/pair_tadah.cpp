@@ -122,7 +122,7 @@ void PairTadah::compute_2b(int eflag, int vflag)
   firstneigh = list->firstneigh;
   int newton_pair = force->newton_pair;
 
-  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  // IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
   const std::size_t n_desc = lt->S.descriptor_size();
   if (lt->capture_adjoint_state) {
     if (lt->aeds.cols() < static_cast<std::size_t>(nlocal)
@@ -207,14 +207,14 @@ void PairTadah::compute_2b(int eflag, int vflag)
             }
           }
         }
-        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // Per-pair box-strain contribution to dvirial_dW.
         // For 2b, E_pair depends only on rij. Under deformation F = I+ε:
         //   ∂rij/∂ε_α = (1/rij) · Σ_β Σ_γ delij[β] · (e_α)_βγ · delij[γ]
         //   ∂²E_pair/∂ε_α∂W_c = fd(c,0) · ∂rij/∂ε_α
         //   dvirial_dW[α,c] += -fd(c,0) · ∂rij/∂ε_α  per directed pair.
         //
-        // box_dofs=1 (iso): F = (1+ε)·I ⇒ ∂rij/∂ε|_iso = rij. Pre-3.7.5
-        // single-row accumulator preserved exactly.
+        // box_dofs=1 (iso): F = (1+ε)·I ⇒ ∂rij/∂ε|_iso = rij. The
+        // single-row accumulator of the iso-only code, preserved exactly.
         //
         // box_dofs=6 (Voigt): voigt_basis matches LammpsHessianAssembler
         // (e[α][α]=1 on diagonals; off-diagonals e[i][j]=e[j][i]=0.5
@@ -302,7 +302,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
     }
   }
 
-  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  // IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
   if (lt->capture_adjoint_state) {
     lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal),
                                 lt->S.descriptor_size());
@@ -466,7 +466,7 @@ void PairTadah::compute_2b_mb_half(int eflag, int vflag)
             }
           }
         }
-        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // Per-pair box-strain contribution to dvirial_dW.
         // For mb under deformation F = I + ε on positions x → F·x:
         //   Δdelij[k] = Σ_β (e_α)_kβ · delij[β]
         //   ∂E_pair/∂ε_α = -F_i_pair · Δdelij = (fd·W) · Δdelij
@@ -755,7 +755,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
     }
   }
 
-  // Phase 3 IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
+  // IFT-adjoint snapshot setup. Default false ⇒ zero MD cost.
   if (lt->capture_adjoint_state) {
     lt->adjoint_snapshot.reset(static_cast<std::size_t>(nlocal),
                                 lt->S.descriptor_size());
@@ -886,7 +886,7 @@ void PairTadah::compute_2b_mb_full(int eflag, int vflag)
             }
           }
         }
-        // Phase 3.7.5 / 3.7D: per-pair box-strain contribution to dvirial_dW.
+        // Per-pair box-strain contribution to dvirial_dW.
         // Same derivation as mb_half (see comment there). mb_full's
         // full-list double-counting cancels via the 0.5 weight already
         // applied in calc_dXijdri (line 521 above), so per-pair math
@@ -975,7 +975,7 @@ void PairTadah::compute_dimers(int eflag, int vflag)
   // This is the tolerance for the bond distance
   double eps=1e-1;
 
-  // Phase 3: dimer adjoint not implemented (per-molecule lt->aeds reuse +
+  // Dimer adjoint not implemented (per-molecule lt->aeds reuse +
   // 4-atom-subunit force decomposition need per-atom remapping). Reset
   // snapshot to a known empty state with valid=false; HPO host falls back
   // to numerical FD for any dimer-using script.

@@ -155,7 +155,7 @@ namespace LAMMPS_NS {
       static void stage_extern(std::shared_ptr<tadah::LammpsTadah> pot);
       static void clear_staged_extern();
 
-      /* Phase 3 IFT-adjoint host accessor.
+      /* IFT-adjoint host accessor.
        *
        * HPO host needs to (a) toggle lt->capture_adjoint_state around the
        * post-relax pair->compute call, and (b) read lt->adjoint_snapshot and

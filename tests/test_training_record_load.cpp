@@ -5,7 +5,7 @@
 // (EFILTER, FFILTER, ESHIFT_ATOM, ESHIFT_DBATOM, EWEIGHT_TEMP,
 // ZERO_COM_FORCE, WDBFILE, WDBFILE_AUTO), VALIDATION, HPOTARGET,
 // UNCERTAINTY, VERBOSE, NUMERIC, OUTFILE, AUDIT, AUDIT_SAMPLE and HEALTH_LOG
-// for the user's record (MK's decisions of 2026-10-14). The block is
+// for the user's record. The block is
 // comments only: pair_coeff reads neither its keys nor its values.
 
 #include "catch2/catch.hpp"
@@ -61,8 +61,8 @@ std::string pair_potential() {
 /* The training record of a run whose configuration set every key a
  * potential keeps only there, VERBOSE 2 among them (a key line VERBOSE 2
  * would set the Tadah log level of the process), with a DBFILE that does
- * not exist, as tadah writes it (its opening line said "(not read by
- * tadah)" before MK's decision of 2026-10-14, option 2). */
+ * not exist, as tadah writes it (its opening line once said "(not read
+ * by tadah)"). */
 const char *const kRecord =
     "# --- training record (no key is read from it) ---\n"
     "# DBFILE no_such_dataset.db other.db\n"

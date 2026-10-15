@@ -5,9 +5,9 @@
 #include <cstddef>
 #include <vector>
 
-/* Phase 3.1: struct-level coverage of the IFT-adjoint snapshot. Full
- * pair_tadah accumulation correctness is exercised end-to-end in Phase 3.6's
- * Analytical-vs-Numerical parity test (HPO-side, has the LAMMPS-runner test
+/* Struct-level coverage of the IFT-adjoint snapshot. Full pair_tadah
+ * accumulation correctness is exercised end-to-end in HPO's
+ * Analytical-vs-Numerical parity test (it has the LAMMPS-runner test
  * fixture). The `capture_adjoint_state` member is verified to default-init
  * to false in the AdjointSnapshot's owning LammpsTadah by inspection of
  * lammps_tadah.h (struct default member initializers); constructing a full

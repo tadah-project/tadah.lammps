@@ -1,7 +1,7 @@
 *.swp
 build
 
-# --- Beta-prep additions (Session E) ---
+# --- Build trees, editor and tool files, coverage and profiling ---
 build_*/
 cmake-build-*/
 _build/
@@ -13,7 +13,6 @@ install_manifest.txt
 .vscode/
 .idea/
 .cache/
-.claude/
 __pycache__/
 *.pyc
 .pytest_cache/
