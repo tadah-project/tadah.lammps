@@ -17,6 +17,7 @@
 #include <tadah/core/periodic_table.h>
 #include <tadah/models/descriptors/dm/dm_ream.h>
 #include <tadah/models/descriptors/dm/rhoform.h>
+#include <tadah/models/eam/embed_edit.h>
 #include <tadah/tadah.lammps/eam_collapse.h>
 #include <tadah/tadah.lammps/lammps_tadah.h>
 
@@ -24,6 +25,27 @@ using tadah::EamCollapseTables;
 using tadah::EamRadialTable;
 using tadah::LammpsTadah;
 using tadah::TableCertificate;
+
+TEST_CASE("DM_Embed scalar interface preserves EAM density and embedding collapse",
+          "[unified-dm][eam_collapse]") {
+    tadah::core::PeriodicTable::initialize();
+    auto c=tadah::core::CoreUserConfigParser().parse("tests_data/pots/ta_ream_knot5.tadah");
+    tadah::models::DC_Selector old(c);
+    auto converted=c;tadah::models::replace_ream_with_embed(converted);
+    tadah::models::DC_Selector current(converted);
+    REQUIRE(current.dmb->eam_form());
+    tadah::core::t_type weights(c.size("WEIGHTS"));c.get("WEIGHTS",weights);
+    for(int i=0;i<200;++i) {
+      double r=0.2+6.0*i/199,rho0,d0,rho1,d1;
+      old.dmb->eam_density(73,73,r,rho0,d0);current.dmb->eam_density(73,73,r,rho1,d1);
+      REQUIRE(rho1==Approx(rho0).margin(1e-12));REQUIRE(d1==Approx(d0).margin(1e-12));
+      old.dmb->eam_embed(weights,r,rho0,d0);current.dmb->eam_embed(weights,r,rho1,d1);
+      REQUIRE(rho1==Approx(rho0).margin(1e-10));REQUIRE(d1==Approx(d0).margin(1e-10));
+    }
+    EamCollapseTables tables;std::string reason;
+    REQUIRE(tadah::build_eam_collapse(current,weights,73,tadah::kCollapseNR,tables,reason));
+    REQUIRE(tables.valid);REQUIRE(tables.has_mb);
+}
 
 namespace {
 
