@@ -331,7 +331,7 @@ TEST_CASE("build_pair2b_collapse refuses on weight-size mismatch",
     REQUIRE(why.find("weight count") != std::string::npos);
 }
 
-TEST_CASE("pair collapse: the Ta D2_LJ table is certified to rel tol 1e-9 "
+TEST_CASE("pair collapse: the Ta D2_LJ table is certified to rel tol 1e-10 "
           "above r_lo, and r_lo is the smallest such node",
           "[eam_collapse][pair2b][certificate]") {
     auto lt_ptr = load_pot("tests_data/pots/ta_lj_cutdummy.tadah", "Ta");
@@ -343,7 +343,7 @@ TEST_CASE("pair collapse: the Ta D2_LJ table is certified to rel tol 1e-9 "
     REQUIRE(tadah::build_pair2b_collapse(lt.S, w, lt.Z[0],
                                          tadah::kCollapseNR, T, why));
     REQUIRE(tadah::kCollapseNR == 8192);
-    REQUIRE(tadah::kCollapseRelTol == 1e-9);
+    REQUIRE(tadah::kCollapseRelTol == 1e-10);
     REQUIRE(T.phi.nr == tadah::kCollapseNR);
     REQUIRE(T.phi.rmax == 6.5);
 
@@ -418,7 +418,7 @@ TEST_CASE("pair collapse: the load-time report states the certified range, "
     const std::regex re(
         R"(^pair-collapse fast path ON \(2b-only, nr=8192\): )"
         R"(table certified for r in \[([^,\]]+), ([^\]]+)\] )"
-        R"(\(rel tol 1e-9: energy ([^,]+), force ([^)]+)\); )"
+        R"(\(rel tol 1e-10: energy ([^,]+), force ([^)]+)\); )"
         R"(analytic below r=(\S+)$)");
     std::smatch m;
     REQUIRE(std::regex_match(s, m, re));
@@ -432,8 +432,8 @@ TEST_CASE("pair collapse: the load-time report states the certified range, "
     /* achieved errors, one significant digit, never above the tolerance */
     REQUIRE(std::stod(m[3].str()) == Approx(c.max_rel_val).epsilon(0.5));
     REQUIRE(std::stod(m[4].str()) == Approx(c.max_rel_der).epsilon(0.5));
-    REQUIRE(std::stod(m[3].str()) <= 1e-9);
-    REQUIRE(std::stod(m[4].str()) <= 1e-9);
+    REQUIRE(std::stod(m[3].str()) <= 1e-10);
+    REQUIRE(std::stod(m[4].str()) <= 1e-10);
     /* the old absolute diagnostic without a range is gone */
     REQUIRE(s.find("parity") == std::string::npos);
 }
@@ -574,7 +574,7 @@ TEST_CASE("EAM collapse: D2_LJ + DM_REAM certifies phi and rho, with "
     REQUIRE(s.rfind("EAM-collapse fast path ON (nr=8192): ", 0) == 0);
     REQUIRE(s.find("phi table certified for r in [") != std::string::npos);
     REQUIRE(s.find("rho table certified for r in [") != std::string::npos);
-    REQUIRE(s.find("rel tol 1e-9") != std::string::npos);
+    REQUIRE(s.find("rel tol 1e-10") != std::string::npos);
     REQUIRE(s.find("analytic below r=") != std::string::npos);
     REQUIRE(s.find("parity") == std::string::npos);
 }
@@ -712,7 +712,7 @@ TEST_CASE("build_pair2b_collapse refuses a table whose top segment misses "
     INFO(why);
     /* The certified range is one interval ending at the cutoff, so the
      * top segment decides; the segments below it may well pass. */
-    REQUIRE(why == "phi table misses rel tol 1e-9 already in its top "
+    REQUIRE(why == "phi table misses rel tol 1e-10 already in its top "
                    "segment, just below the cutoff r=6.5");
     REQUIRE(T.phi_cert.empty());
     const Analytic f = independent_phi(lt, w);
@@ -737,7 +737,7 @@ TEST_CASE("build_eam_collapse refuses a model whose rho table misses the "
                                             tadah::kCollapseNR, T, why));
     REQUIRE_FALSE(T.valid);
     INFO(why);
-    REQUIRE(why == "rho table misses rel tol 1e-9 already in its top "
+    REQUIRE(why == "rho table misses rel tol 1e-10 already in its top "
                    "segment, just below the cutoff r=6");
     REQUIRE(T.rho_cert.empty());
     require_well_formed(T.phi_cert, T.phi);   // the phi table was fine
