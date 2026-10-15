@@ -79,8 +79,8 @@ const char *kLegacy = "one intercept column shared by all species";
 // NSTDEV) whose basis fits but whose NMEAN and NSTDEV have 4 values, naming
 // NMEAN, with the hint.
 // Before the fix: every one of them was accepted (the predictors ran over
-// the weights: wrong energies and forces). Before the one-guard rewording
-// (review): the messages said "WEIGHTS has 4 values", "DSIZE 5" and "4
+// the weights: wrong energies and forces). Before the one-guard rewording:
+// the messages said "WEIGHTS has 4 values", "DSIZE 5" and "4
 // entries", the hint named no version, the Kern_RBF potential was refused
 // by build_sub_objects without the hint ("cannot evaluate a non-linear
 // potential trained with BIAS true on several species"), and the NMEAN case
