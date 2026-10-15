@@ -5,6 +5,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Regression coverage for the `DM_Embed` scalar EAM interface and collapse tables. Existing capability-based generic and accelerated kernels accept the registered descriptor without name-specific branches.
+
 ## [1.6.0] — unreleased
 
 ### Added
