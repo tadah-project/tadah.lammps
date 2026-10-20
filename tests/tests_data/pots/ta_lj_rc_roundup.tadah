@@ -5,8 +5,6 @@
 ATOM     Ta
 BIAS     false
 DIMER     false     0     false
-EWEIGHT     1.0
-FWEIGHT     1.0
 INIT2B     true
 INITMB     false
 LAMBDA     0
@@ -15,7 +13,6 @@ NORM     false
 OALGO     1
 RCTYPE2B     Cut_Dummy
 RCUT2B     7.999196555374454
-SWEIGHT     1.0
 TYPE2B     D2_LJ     Ta     Ta
 UNCERTAINTY     false
 WATOM     73

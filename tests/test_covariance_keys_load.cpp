@@ -1,12 +1,15 @@
 // pair_style tadah loads (tadah::LammpsTadah, the object pair_coeff builds
 // from the potential file) a potential that carries a weight covariance:
-// WCOV and WNOISE, which `tadah train` writes for an OALGO 3 fit, and
-// SIGMA, which Tadah! 1.0.0 to 1.5.0 and the 1.6.0 development builds wrote
-// instead (a deprecated key now: one notice, not stored). pair_style tadah
-// does not use the covariance.
+// WCOV and WNOISE, which `tadah train` writes for an OALGO 3 fit beside the
+// error scales of the fit (ESIGMA, FSIGMA, SSIGMA, ENORM, ENERGY: WNOISE
+// holds noise variances in the units of the data, that of the energy per
+// atom), and SIGMA, which Tadah! 1.0.0 to 1.5.0 and the 1.6.0 development
+// builds wrote instead (a deprecated key now: one notice, not stored).
+// pair_style tadah does not use the covariance.
 //
 // The potential is the D2_LJ pair potential of
-// tests_data/pots/ta_lj_cutcos.tadah.
+// tests_data/pots/ta_lj_cutcos.tadah, with the error scale lines a fit
+// writes (the defaults).
 
 #include "catch2/catch.hpp"
 
@@ -18,6 +21,7 @@
 #include <fstream>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unistd.h>
@@ -29,8 +33,10 @@ const char *kPairPotential =
     "ATOM     Ta\n"
     "BIAS     false\n"
     "DIMER     false     0     false\n"
-    "EWEIGHT     1.0\n"
-    "FWEIGHT     1.0\n"
+    "ENERGY     true\n"
+    "ENORM     ATOM\n"
+    "ESIGMA     1\n"
+    "FSIGMA     0.1     0\n"
     "INIT2B     true\n"
     "INITMB     false\n"
     "LAMBDA     0\n"
@@ -39,7 +45,7 @@ const char *kPairPotential =
     "OALGO     3\n"
     "RCTYPE2B     Cut_Cos\n"
     "RCUT2B     6.5\n"
-    "SWEIGHT     1.0\n"
+    "SSIGMA     0.5     0\n"
     "TYPE2B     D2_LJ     Ta     Ta\n"
     "WATOM     73\n"
     "WEIGHTS     14.204213349318765225     2604.396965191186154698\n";
@@ -77,8 +83,9 @@ std::string load_error(const std::string &path) {
 }  // namespace
 
 /* Pins: a potential with WCOV (N = 2, then the 2 x 2 matrix) and WNOISE (E
- * and F) loads as pair_coeff loads it, and its Context keeps both keys
- * (5 and 4 values).
+ * and F) beside its error scales loads as pair_coeff loads it, and its
+ * Context keeps both keys (5 and 4 values) and the error scales (ESIGMA 1,
+ * FSIGMA 0.1 0).
  * Before the fix: the load threw "Invalid key: WCOV" (pair_coeff failed). */
 TEST_CASE("pair_style tadah loads a potential with WCOV and WNOISE",
           "[lammps_tadah][weight_covariance]") {
@@ -96,6 +103,8 @@ TEST_CASE("pair_style tadah loads a potential with WCOV and WNOISE",
   REQUIRE(lt != nullptr);
   CHECK(lt->c.size("WCOV") == 5);
   CHECK(lt->c.size("WNOISE") == 4);
+  CHECK(lt->c.stored_value("ESIGMA") == std::optional<std::string>("1"));
+  CHECK(lt->c.size("FSIGMA") == 2);
 }
 
 /* Pins: a potential with a SIGMA line (an OALGO 3 potential of Tadah!

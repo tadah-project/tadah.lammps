@@ -8,8 +8,6 @@ ATOM              Ta
 BIAS              false
 CGRID2B           5.0001672567452085
 DIMER             false 0 false
-EWEIGHT           1.0
-FWEIGHT           1.0
 INIT2B            true
 INITMB            false
 LAMBDA            0
@@ -18,7 +16,6 @@ NORM              false
 RCTYPE2B          Cut_Dummy
 RCUT2B            6.5
 SGRID2B           1.6408253205128203
-SWEIGHT           1.0
 TYPE2B            D2_Blip 1 1 Ta Ta
 WATOM             1
 WEIGHTS           1.0
