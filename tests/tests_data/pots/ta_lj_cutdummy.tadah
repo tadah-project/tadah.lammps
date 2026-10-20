@@ -3,11 +3,11 @@
 # Tadah! 1.6.0 shipped (docs/source/quickstart/pot.tadah of that release;
 # the quickstart now ships a D2_Blip + DM_mBlipEnv model). A linear,
 # single-species, pure two-body potential: it takes the pair-collapse fast path.
+# The lines of the keys EWEIGHT, FWEIGHT and SWEIGHT, which Tadah! 1.6.0
+# retired and no load of a potential reads, are left out.
 ATOM     Ta
 BIAS     false
 DIMER     false     0     false
-EWEIGHT     1.0
-FWEIGHT     1.0
 INIT2B     true
 INITMB     false
 LAMBDA     0
@@ -16,7 +16,6 @@ NORM     false
 OALGO     1
 RCTYPE2B     Cut_Dummy
 RCUT2B     6.5
-SWEIGHT     1.0
 TYPE2B     D2_LJ     Ta     Ta
 UNCERTAINTY     false
 WATOM     73

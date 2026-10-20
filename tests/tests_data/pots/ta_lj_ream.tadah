@@ -11,8 +11,6 @@ BIAS              false
 CEMBFUNC          0.0 0.4 0.8 1.2 1.6
 CGRIDMB           1.0 2.0 3.0 4.0
 DIMER             false 0 false
-EWEIGHT           1.0
-FWEIGHT           1.0
 INIT2B            true
 INITMB            true
 LAMBDA            0
@@ -25,7 +23,6 @@ RCUTMB            6.0
 RHOFORM           SIGNED
 SEMBFUNC          1.5 1.5 1.5 1.5 1.5
 SGRIDMB           1.0 1.0 1.0 1.0
-SWEIGHT           1.0
 TYPE2B            D2_LJ Ta Ta
 TYPEMB            DM_REAM 0 4 4 4 5 5 0 0 Ta Ta
 WATOM             1
