@@ -1,9 +1,11 @@
 // pair_style tadah (tadah::LammpsTadah, the object pair_coeff builds from
 // the potential file) and the keys Tadah! 1.6.0 retired: EWEIGHT, FWEIGHT,
 // SWEIGHT, WDBFILE_AUTO and EWEIGHT_TEMP weighted the training data of a fit
-// before 1.6.0: a potential that tadah train or tadah hpo of 1.0.0 to 1.5.0
-// wrote has EWEIGHT, FWEIGHT and SWEIGHT lines, and from 1.3.0 a
-// WDBFILE_AUTO line. Such a potential loads: the keys change nothing a
+// before 1.6.0, and UNCERTAINTY asked a fit for the standard deviations of
+// its coefficients: a potential that tadah train or tadah hpo of 1.0.0 to
+// 1.5.0 wrote has EWEIGHT, FWEIGHT and SWEIGHT lines, from 1.3.0 a
+// WDBFILE_AUTO line, and a potential of tadah train 1.5.0 an UNCERTAINTY
+// line. Such a potential loads: the keys change nothing a
 // prediction gives, so they are not stored, and each load gives one notice
 // that lists them with their lines (pair_style tadah writes it as a LAMMPS
 // warning on rank 0 for each pair_coeff; Tadah.MLIP's test_pair_coeff_reload
@@ -13,7 +15,8 @@
 // for byte as `tadah train -c config.train` of tadah 1.5.0 wrote it (D2_Blip
 // 3 3 Ta Ta, Cut_Cos at 5 A, M_BLR BF_Linear, FORCE true, OALGO 3, EWEIGHT
 // 1.0 and FWEIGHT 100, on three 54-atom bcc Ta cells): its EWEIGHT, FWEIGHT,
-// SWEIGHT and WDBFILE_AUTO lines are lines 8, 10, 23 and 27.
+// SWEIGHT, UNCERTAINTY and WDBFILE_AUTO lines are lines 8, 10, 23, 25 and
+// 27.
 // tests_data/pots/tadah.n2 is a verbatim copy of the published Tadah!N2
 // potential (Tadah.MLIP docs/source/mlips/tadah.n2): its EWEIGHT, FWEIGHT and
 // SWEIGHT lines are lines 8, 9 and 22.
@@ -88,13 +91,15 @@ struct Case {
 /* Pins: for the potential of Tadah! 1.5.0 and the published Tadah!N2, a
  * load as pair_coeff loads it succeeds and gives one notice, "Retired keys
  * EWEIGHT (line 8 of <file>), FWEIGHT (line 10 of <file>), SWEIGHT (line 23
- * of <file>) and WDBFILE_AUTO (line 27 of <file>) are ignored: ..." (for
- * Tadah!N2 EWEIGHT, FWEIGHT and SWEIGHT on lines 8, 9 and 22); a second load
- * gives it again (one notice per load); none of the keys is stored; and the
- * loaded context writes the key lines of the same file without those lines
- * (write_potential, which writes no retired line).
+ * of <file>), UNCERTAINTY (line 25 of <file>) and WDBFILE_AUTO (line 27 of
+ * <file>) are ignored: ..." (for Tadah!N2 EWEIGHT, FWEIGHT and SWEIGHT on
+ * lines 8, 9 and 22); a second load gives it again (one notice per load);
+ * none of the keys is stored; and the loaded context writes the key lines
+ * of the same file without those lines (write_potential, which writes no
+ * retired line).
  * Before the fix: the keys were stored as keys of the model (EWEIGHT 1.0,
- * FWEIGHT 100 ...), with no notice. */
+ * FWEIGHT 100 ...), with no notice. Before UNCERTAINTY was retired: the
+ * notice listed four keys, and the context stored UNCERTAINTY false. */
 TEST_CASE("pair_style tadah loads a potential with retired keys, with one "
           "notice per load that lists them",
           "[lammps_tadah][retired]") {
@@ -102,7 +107,7 @@ TEST_CASE("pair_style tadah loads a potential with retired keys, with one "
   const std::vector<Case> cases = {
       {"tests_data/pots/ta_blip_1.5.0.tadah", "Ta",
        {{"EWEIGHT", 8}, {"FWEIGHT", 10}, {"SWEIGHT", 23},
-        {"WDBFILE_AUTO", 27}}},
+        {"UNCERTAINTY", 25}, {"WDBFILE_AUTO", 27}}},
       {"tests_data/pots/tadah.n2", "N",
        {{"EWEIGHT", 8}, {"FWEIGHT", 9}, {"SWEIGHT", 22}}}};
   for (const Case &c : cases) {

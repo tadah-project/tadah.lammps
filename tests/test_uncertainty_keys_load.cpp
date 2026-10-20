@@ -1,11 +1,10 @@
 // pair_style tadah loads (tadah::LammpsTadah, the object pair_coeff builds
-// from the potential file) a potential that carries a weight covariance:
-// WCOV and WNOISE, which `tadah train` writes for an OALGO 3 fit beside the
-// error scales of the fit (ESIGMA, FSIGMA, SSIGMA, ENORM, ENERGY: WNOISE
-// holds noise variances in the units of the data, that of the energy per
-// atom), and SIGMA, which Tadah! 1.0.0 to 1.5.0 and the 1.6.0 development
-// builds wrote instead (a deprecated key now: one notice, not stored).
-// pair_style tadah does not use the covariance.
+// from the potential file) a potential with the keys of uncertainty output,
+// which Tadah! 1.6.0 does not give: WCOV and WNOISE, the covariance of the
+// WEIGHTS and the noise variance of each quantity that a development build
+// of Tadah! 1.6.0 wrote for an OALGO 3 fit, are retired keys (one notice
+// per load, not stored), and SIGMA, which Tadah! 1.0.0 to 1.5.0 wrote, is a
+// deprecated key (one notice, not stored).
 //
 // The potential is the D2_LJ pair potential of
 // tests_data/pots/ta_lj_cutcos.tadah, with the error scale lines a fit
@@ -54,7 +53,7 @@ const char *kPairPotential =
 struct PotFile {
   std::string path;
   explicit PotFile(const std::string &extra) {
-    path = "covariance_keys_" + std::to_string(::getpid()) + ".tadah";
+    path = "uncertainty_keys_" + std::to_string(::getpid()) + ".tadah";
     std::ofstream(path) << kPairPotential << extra;
   }
   ~PotFile() { std::remove(path.c_str()); }
@@ -83,39 +82,50 @@ std::string load_error(const std::string &path) {
 }  // namespace
 
 /* Pins: a potential with WCOV (N = 2, then the 2 x 2 matrix) and WNOISE (E
- * and F) beside its error scales loads as pair_coeff loads it, and its
- * Context keeps both keys (5 and 4 values) and the error scales (ESIGMA 1,
- * FSIGMA 0.1 0).
- * Before the fix: the load threw "Invalid key: WCOV" (pair_coeff failed). */
-TEST_CASE("pair_style tadah loads a potential with WCOV and WNOISE",
-          "[lammps_tadah][weight_covariance]") {
+ * and F) beside its error scales loads as pair_coeff loads it, with one
+ * notice per load, "Retired keys WCOV (line 20 of <file>) and WNOISE (line
+ * 21 of <file>) are ignored: ...", and its Context has neither key and keeps
+ * the error scales (ESIGMA 1, FSIGMA 0.1 0).
+ * Before the fix: the Context kept both keys (5 and 4 values), with no
+ * notice. */
+TEST_CASE("pair_style tadah loads a potential with WCOV and WNOISE, with one "
+          "notice",
+          "[lammps_tadah][retired][uncertainty]") {
   tadah::core::PeriodicTable::initialize();
   const PotFile pot("WCOV     2     0.5 0.1 0.1 0.25\n"
                     "WNOISE     E 0.04     F 0.0025\n");
-  std::unique_ptr<tadah::LammpsTadah> lt;
-  std::string msg;
-  try {
-    lt = load(pot.path);
-  } catch (const std::exception &e) {
-    msg = e.what();
+  for (int load_no = 1; load_no <= 2; ++load_no) {
+    INFO("load " << load_no);
+    tadah::core::IgnoredKeyNoticeCapture notices;
+    std::unique_ptr<tadah::LammpsTadah> lt;
+    std::string msg;
+    try {
+      lt = load(pot.path);
+    } catch (const std::exception &e) {
+      msg = e.what();
+    }
+    INFO("load: " << msg);
+    REQUIRE(lt != nullptr);
+    REQUIRE(notices.notices().size() == 1);
+    CHECK(notices.notices()[0].rfind(
+              "Retired keys WCOV (line 20 of " + pot.path +
+                  ") and WNOISE (line 21 of " + pot.path + ") are ignored",
+              0) == 0);
+    CHECK_FALSE(lt->c.has_stored("WCOV"));
+    CHECK_FALSE(lt->c.has_stored("WNOISE"));
+    CHECK(lt->c.stored_value("ESIGMA") == std::optional<std::string>("1"));
+    CHECK(lt->c.size("FSIGMA") == 2);
   }
-  INFO("load: " << msg);
-  REQUIRE(lt != nullptr);
-  CHECK(lt->c.size("WCOV") == 5);
-  CHECK(lt->c.size("WNOISE") == 4);
-  CHECK(lt->c.stored_value("ESIGMA") == std::optional<std::string>("1"));
-  CHECK(lt->c.size("FSIGMA") == 2);
 }
 
 /* Pins: a potential with a SIGMA line (an OALGO 3 potential of Tadah!
- * 1.0.0 to 1.5.0 or a 1.6.0 development build) loads as pair_coeff loads
- * it, writes the deprecation
+ * 1.0.0 to 1.5.0) loads as pair_coeff loads it, writes the deprecation
  * notice of SIGMA ("WARNING: Deprecated key SIGMA is ignored: ...") once,
  * on standard error (pair_style tadah routes it to LAMMPS' warning, see
  * HPO's test_pair_tadah_notices.cpp), and its Context has no SIGMA.
  * Before the fix: SIGMA was stored, with no notice. */
 TEST_CASE("pair_style tadah loads a potential with SIGMA and ignores it",
-          "[lammps_tadah][weight_covariance]") {
+          "[lammps_tadah][uncertainty]") {
   tadah::core::PeriodicTable::initialize();
   const PotFile pot("SIGMA     2     1 0 0 1\n");
   const std::size_t expected =
