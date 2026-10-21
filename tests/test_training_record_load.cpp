@@ -3,8 +3,8 @@
 // block that tadah train, tadah hpo and tadah refit write above the key
 // lines, naming the run's DBFILE, the keys that prepared its training data
 // (EFILTER, FFILTER, ESHIFT_ATOM, ESHIFT_DBATOM, ZERO_COM_FORCE, WDBFILE),
-// VALIDATION, HPOTARGET, UNCERTAINTY, VERBOSE, NUMERIC, OUTFILE, AUDIT,
-// AUDIT_SAMPLE and HEALTH_LOG for the user's record. The block is
+// VALIDATION, HPOTARGET, VERBOSE, NUMERIC, OUTFILE, AUDIT, AUDIT_SAMPLE
+// and HEALTH_LOG for the user's record. The block is
 // comments only: pair_coeff reads neither its keys nor its values.
 
 #include "catch2/catch.hpp"
@@ -73,7 +73,6 @@ const char *const kRecord =
     "# WDBFILE 1 0\n"
     "# VALIDATION config.val\n"
     "# HPOTARGET config.hpo\n"
-    "# UNCERTAINTY true\n"
     "# VERBOSE 2\n"
     "# NUMERIC 9\n"
     "# OUTFILE pot.tadah\n"
@@ -97,11 +96,11 @@ std::unique_ptr<tadah::LammpsTadah> load(const std::string &path) {
 
 /* Pins: pair_coeff loads a potential whose key lines follow its training
  * record (DBFILE of a dataset that does not exist, the six keys that
- * prepared the training data, VALIDATION, HPOTARGET, UNCERTAINTY true,
- * VERBOSE 2, NUMERIC 9, OUTFILE, AUDIT error, AUDIT_SAMPLE 64, HEALTH_LOG
- * full) to the same context, key by key, as the same key lines without the
- * block (a potential without a record, as every earlier version wrote,
- * loads as before), with none of the sixteen keys but VERBOSE, which the
+ * prepared the training data, VALIDATION, HPOTARGET, VERBOSE 2, NUMERIC
+ * 9, OUTFILE, AUDIT error, AUDIT_SAMPLE 64, HEALTH_LOG full) to the same
+ * context, key by key, as the same key lines without the block (a
+ * potential without a record, as every earlier version wrote, loads as
+ * before), with none of the fifteen keys but VERBOSE, which the
  * model's construction stores at its default as for the potential without
  * the block (not the record's 2), and leaves the Tadah log level where the
  * potential without the block leaves it.
@@ -131,8 +130,8 @@ TEST_CASE("pair_style tadah ignores the training record of a potential",
   CHECK(lt_with->c.storage_snapshot() == lt_bare->c.storage_snapshot());
   for (const char *key :
        {"DBFILE", "EFILTER", "FFILTER", "ESHIFT_ATOM", "ESHIFT_DBATOM",
-        "ZERO_COM_FORCE", "WDBFILE", "VALIDATION", "HPOTARGET", "UNCERTAINTY",
-        "NUMERIC", "OUTFILE", "AUDIT", "AUDIT_SAMPLE", "HEALTH_LOG"}) {
+        "ZERO_COM_FORCE", "WDBFILE", "VALIDATION", "HPOTARGET", "NUMERIC",
+        "OUTFILE", "AUDIT", "AUDIT_SAMPLE", "HEALTH_LOG"}) {
     INFO("key " << key);
     CHECK_FALSE(lt_with->c.has_stored(key));
   }
