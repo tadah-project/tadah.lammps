@@ -17,8 +17,9 @@
 // SWEIGHT, UNCERTAINTY and WDBFILE_AUTO lines are lines 8, 10, 23, 25 and
 // 27.
 // tests_data/pots/tadah.n2 is a verbatim copy of the published Tadah!N2
-// potential (Tadah.MLIP docs/source/mlips/tadah.n2): its EWEIGHT, FWEIGHT and
-// SWEIGHT lines are lines 8, 9 and 22.
+// potential (Tadah.MLIP docs/source/mlips/tadah.n2): the EWEIGHT, FWEIGHT
+// and SWEIGHT of its fit are in its training record, the comment block
+// above its key lines, which no loader reads.
 
 #include "catch2/catch.hpp"
 
@@ -87,18 +88,20 @@ struct Case {
 
 }  // namespace
 
-/* Pins: for the potential of Tadah! 1.5.0 and the published Tadah!N2, a
- * load as pair_coeff loads it succeeds and gives one notice, "Retired keys
- * EWEIGHT (line 8 of <file>), FWEIGHT (line 10 of <file>), SWEIGHT (line 23
- * of <file>), UNCERTAINTY (line 25 of <file>) and WDBFILE_AUTO (line 27 of
- * <file>) are ignored: ..." (for Tadah!N2 EWEIGHT, FWEIGHT and SWEIGHT on
- * lines 8, 9 and 22); a second load gives it again (one notice per load);
+/* Pins: for the potential of Tadah! 1.5.0, a load as pair_coeff loads it
+ * succeeds and gives one notice, "Retired keys EWEIGHT (line 8 of <file>),
+ * FWEIGHT (line 10 of <file>), SWEIGHT (line 23 of <file>), UNCERTAINTY
+ * (line 25 of <file>) and WDBFILE_AUTO (line 27 of <file>) are ignored:
+ * ..."; a second load gives it again (one notice per load);
  * none of the keys is stored; and the loaded context writes the key lines
  * of the same file without those lines (write_potential, which writes no
  * retired line).
  * Before the fix: the keys were stored as keys of the model (EWEIGHT 1.0,
  * FWEIGHT 100 ...), with no notice. Before UNCERTAINTY was retired: the
- * notice listed four keys, and the context stored UNCERTAINTY false. */
+ * notice listed four keys, and the context stored UNCERTAINTY false. (The
+ * published Tadah!N2 was a second case, with EWEIGHT, FWEIGHT and SWEIGHT
+ * on lines 8, 9 and 22, until those moved into its training record: the
+ * case below.) */
 TEST_CASE("pair_style tadah loads a potential with retired keys, with one "
           "notice per load that lists them",
           "[lammps_tadah][retired]") {
@@ -106,9 +109,7 @@ TEST_CASE("pair_style tadah loads a potential with retired keys, with one "
   const std::vector<Case> cases = {
       {"tests_data/pots/ta_blip_1.5.0.tadah", "Ta",
        {{"EWEIGHT", 8}, {"FWEIGHT", 10}, {"SWEIGHT", 23},
-        {"UNCERTAINTY", 25}, {"WDBFILE_AUTO", 27}}},
-      {"tests_data/pots/tadah.n2", "N",
-       {{"EWEIGHT", 8}, {"FWEIGHT", 9}, {"SWEIGHT", 22}}}};
+        {"UNCERTAINTY", 25}, {"WDBFILE_AUTO", 27}}}};
   for (const Case &c : cases) {
     INFO(c.file);
     std::vector<std::string> keys;
@@ -149,6 +150,37 @@ TEST_CASE("pair_style tadah loads a potential with retired keys, with one "
       lt->c.write_potential(with_lines, 18);
       lt_bare->c.write_potential(without_lines, 18);
       CHECK(with_lines.str() == without_lines.str());
+    }
+  }
+}
+
+/* Pins: the published Tadah!N2 (tests_data/pots/tadah.n2) loads as
+ * pair_coeff loads it with no notice of retired keys, twice: the EWEIGHT,
+ * FWEIGHT and SWEIGHT of its fit are in its training record, and none of
+ * them is stored.
+ * Before the fix: each load gave "Retired keys EWEIGHT (line 8 of <file>),
+ * FWEIGHT (line 9 of <file>) and SWEIGHT (line 22 of <file>) are ignored:
+ * ...". */
+TEST_CASE("pair_style tadah loads the published Tadah!N2 without a notice "
+          "of retired keys",
+          "[lammps_tadah][retired][published]") {
+  tadah::core::PeriodicTable::initialize();
+  for (int load_no = 1; load_no <= 2; ++load_no) {
+    INFO("load " << load_no);
+    tadah::core::IgnoredKeyNoticeCapture notices;
+    std::unique_ptr<tadah::LammpsTadah> lt;
+    std::string msg;
+    try {
+      lt = load("tests_data/pots/tadah.n2", "N");
+    } catch (const std::exception &e) {
+      msg = e.what();
+    }
+    INFO("load: " << msg);
+    REQUIRE(lt != nullptr);
+    CHECK(retired_notices(notices.notices()) == 0);
+    for (const char *k : {"EWEIGHT", "FWEIGHT", "SWEIGHT"}) {
+      INFO("key " << k);
+      CHECK_FALSE(lt->c.has_stored(k));
     }
   }
 }
