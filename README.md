@@ -1,7 +1,5 @@
-[![pipeline](https://git.ecdf.ed.ac.uk/tadah/tadah.lammps/badges/v1-dev/pipeline.svg)](https://git.ecdf.ed.ac.uk/tadah/tadah.lammps/-/commits/v1-dev)
-[![coverage](https://git.ecdf.ed.ac.uk/tadah/tadah.lammps/badges/v1-dev/coverage.svg)](https://git.ecdf.ed.ac.uk/tadah/tadah.lammps/-/commits/v1-dev)
 [![license](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
-[![version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://git.ecdf.ed.ac.uk/tadah/tadah.lammps/-/tags)
+[![version](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/tadah-project/tadah.lammps/tags)
 
 # ML‑TADAH for LAMMPS (Tadah.LAMMPS)
 
@@ -30,7 +28,7 @@ https://docs.lammps.org/Build_cmake.html
 Clone this repository anywhere you like, at `v1-dev` (the development line) or at a release tag such as `v1.6.0`:
 
 ```bash
-git clone -b v1-dev https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git /path/to/Tadah.LAMMPS
+git clone -b v1-dev https://github.com/tadah-project/tadah.lammps.git /path/to/Tadah.LAMMPS
 # or: git clone -b v1.6.0 ...
 ```
 

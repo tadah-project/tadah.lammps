@@ -13,7 +13,7 @@
 
 /*----------------------------------------------------------------------*/
 /* Contributing author: Marcin Kirsz | marcin.kirsz@ed.ac.uk            */
-/* The University of Edinburgh       | https://git.ecdf.ed.ac.uk/tadah  */
+/* The University of Edinburgh       | https://github.com/tadah-project  */
 /*----------------------------------------------------------------------*/
 
 #ifdef PAIR_CLASS

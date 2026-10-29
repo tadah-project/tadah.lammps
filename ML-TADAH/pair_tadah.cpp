@@ -13,7 +13,7 @@ See the README file in the top-level LAMMPS directory.
 
 /*----------------------------------------------------------------------*/
 /* Contributing author: Marcin Kirsz | marcin.kirsz@ed.ac.uk            */
-/* The University of Edinburgh       | https://git.ecdf.ed.ac.uk/tadah  */
+/* The University of Edinburgh       | https://github.com/tadah-project  */
 /*----------------------------------------------------------------------*/
 
 #include "pair_tadah.h"

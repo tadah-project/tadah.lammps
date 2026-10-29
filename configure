@@ -14,9 +14,13 @@ mkdir -p build
 
 GIT_BRANCH=$(git rev-parse --symbolic-full-name --abbrev-ref HEAD)
 
-CORE_URL=https://git.ecdf.ed.ac.uk/tadah/core.git 
-MODELS_URL=https://git.ecdf.ed.ac.uk/tadah/models.git
-MD_URL=https://git.ecdf.ed.ac.uk/tadah/md.git
+# Base address of the Tadah! repositories: TADAH_GIT_BASE when set and not
+# empty, else the public repositories (as CMake's TADAH_GIT_BASE).
+GIT_BASE=${TADAH_GIT_BASE:-https://github.com/tadah-project}
+GIT_BASE=${GIT_BASE%/}
+CORE_URL=$GIT_BASE/core.git
+MODELS_URL=$GIT_BASE/models.git
+MD_URL=$GIT_BASE/md.git
 
 if ! git clone -b ${GIT_BRANCH} $CORE_URL build/CORE 2>/dev/null && [ -d CORE ] ; then  echo Skipping CORE clone as directory exists;  fi
 
