@@ -5,6 +5,13 @@ stages:
   - compile_lammps_with_tadah
   - release
 
+# Base address of the Tadah! repositories that CMake's FetchContent and the
+# clones below use: the group of this project on the server running the
+# pipeline. A group or project CI/CD variable of the same name takes
+# precedence (e.g. an address with a job token).
+variables:
+  TADAH_GIT_BASE: "${CI_SERVER_URL}/${CI_PROJECT_NAMESPACE}"
+
 cache:
     key: "build-cache-$CI_COMMIT_REF_SLUG"
     paths:
@@ -50,7 +57,7 @@ compile_lammps_with_tadah:
   script:
     - mkdir -p ~/opt
     - git clone -b stable --depth 1  https://github.com/lammps/lammps.git ~/opt/lammps
-    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/lammps/lib/tadah.lammps    
+    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 "${TADAH_GIT_BASE:?the CI/CD variable TADAH_GIT_BASE is not set}/tadah.lammps.git" ~/opt/lammps/lib/tadah.lammps    
     - cd ~/opt/lammps/src
     - make -j10 serial
     - make lib-tadah.lammps
@@ -64,7 +71,7 @@ compile_lammps_with_tadah_cmake_integration:
     - mkdir -p ~/opt
     - rm -rf ~/opt/lammps_cmake ~/opt/Tadah.LAMMPS ~/opt/lammps_cmake_build
     - git clone -b stable --depth 1 https://github.com/lammps/lammps.git ~/opt/lammps_cmake
-    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 https://git.ecdf.ed.ac.uk/tadah/tadah.lammps.git ~/opt/Tadah.LAMMPS
+    - git clone -b "$CI_COMMIT_REF_NAME" --depth 1 "${TADAH_GIT_BASE:?the CI/CD variable TADAH_GIT_BASE is not set}/tadah.lammps.git" ~/opt/Tadah.LAMMPS
 
     # Configure LAMMPS CMake build using the Tadah integration hook
     - cmake -S ~/opt/lammps_cmake/cmake -B ~/opt/lammps_cmake_build
