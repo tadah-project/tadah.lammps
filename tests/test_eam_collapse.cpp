@@ -1272,8 +1272,9 @@ TEST_CASE("DM_REAM potential without RHOFORM: the load fails with the "
         REQUIRE_THROWS_WITH(LammpsTadah(4, const_cast<char**>(argv)),
                             Catch::Contains(
                                 tadah::models::rhoform_absent_message()) &&
-                            Catch::Contains("add 'RHOFORM SIGNED' to use an "
-                                            "existing potential unchanged"));
+                            Catch::Contains("which a RHOFORM SIGNED line "
+                                            "declares for an existing "
+                                            "potential"));
     }
     SECTION("a driver-built potential (the Context constructor)") {
         const auto pot = pot_with_rhoform(file, "", "absent_ctx");
