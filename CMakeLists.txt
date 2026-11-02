@@ -24,7 +24,7 @@ endif()
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR
     "In-source builds are not allowed.\n"
-    "CMake must run in a separate build directory, outside the source directory.")
+    "The build directory must differ from the source directory.")
 endif()
 
 # 1. Global settings
