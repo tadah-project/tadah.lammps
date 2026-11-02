@@ -67,7 +67,8 @@ run.
 
 Exit status: 0 every comparison holds; 1 one does not, or a run fails, or an
 executable that is named is not one; 77 (Skipped) the MPI lmp or its launcher
-is not named.
+is not named, or, for the dimer case, an lmp it runs has no atom_style bond
+(part of the LAMMPS MOLECULE package; `lmp -h` lists the atom styles).
 """
 import argparse
 import math
@@ -147,6 +148,16 @@ CELLS = {"cell8": 8, "cell5": 5}
 
 class Failure(Exception):
     pass
+
+
+def atom_styles(cmd):
+    """The atom styles that `lmp -h` lists for the lmp started by @p cmd."""
+    out = run(cmd + ["-h"], os.getcwd(), "no-log")
+    block = re.search(r"^\* Atom styles:\s*\n(.*?)\n\s*\n", out, re.M | re.S)
+    if not block:
+        raise Failure(f"no atom style list in the output of "
+                      f"{shlex.join(cmd + ['-h'])}")
+    return set(block.group(1).split())
 
 
 def executable(path, var):
@@ -458,6 +469,17 @@ def main():
     chk = Checker()
     if a.case == "dimer":
         try:
+            lmps = [(ref_name, ref_cmd)]
+            if ref_cmd != mpi_cmd(1):
+                lmps.append(("the MPI lmp", mpi_cmd(1)))
+            lacking = [name for name, cmd in lmps
+                       if "bond" not in atom_styles(cmd)]
+            if lacking:
+                print("Skipped: the dimer case needs atom_style bond, which "
+                      + " and ".join(lacking)
+                      + (" lack" if len(lacking) > 1 else " lacks")
+                      + " (the LAMMPS MOLECULE package, -DPKG_MOLECULE=ON)")
+                return SKIP
             run_dimer(chk, ref_cmd, ref_name, mpi_cmd, a.pots, a.workdir)
         except Failure as e:
             print(f"FAILED: {e}")
