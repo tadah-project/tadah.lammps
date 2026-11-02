@@ -24,7 +24,7 @@ endif()
 if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR
     "In-source builds are not allowed.\n"
-    "Create a separate build directory and run CMake from there.")
+    "CMake must run in a separate build directory, outside the source directory.")
 endif()
 
 # 1. Global settings
@@ -116,7 +116,7 @@ tadah_use_local_module(Tadah.MD MD)  # FetchContent name + folder name
 
 # 3. Git branch information
 tadah_get_git_branch(TADAH_GIT_BRANCH)
-tadah_lammps_status("${PROJECT_NAME} is using TADAH_GIT_BRANCH:  ${TADAH_GIT_BRANCH}")
+tadah_lammps_status("${PROJECT_NAME} is using TADAH_GIT_BRANCH: ${TADAH_GIT_BRANCH}")
 
 #4. Fetch Tadah! modules
 FetchContent_Declare(
